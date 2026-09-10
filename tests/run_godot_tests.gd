@@ -1,0 +1,48 @@
+﻿@tool
+extends SceneTree
+
+func _init():
+	print("--- Running Godot In-Engine Tests ---")
+	test_version_guard()
+	test_meta_helper()
+	test_dto()
+	print("--- All Godot Tests Passed Successfully! ---")
+	quit(0)
+
+func test_version_guard():
+	print("Testing FxvVersionGuard...")
+	var sem = FxvVersionGuard.parse_semver("0.8.0")
+	assert(sem != null, "SemVer parse failed")
+	assert(sem.major == 0 and sem.minor == 8 and sem.patch == 0, "SemVer values mismatch")
+
+	var res = FxvVersionGuard.check_version("0.8.0")
+	assert(res["compatible"] == true, "0.8.0 should be compatible")
+
+	var res_old = FxvVersionGuard.check_version("0.4.0")
+	assert(res_old["compatible"] == false, "0.4.0 should be incompatible")
+	print("FxvVersionGuard OK.")
+
+func test_meta_helper():
+	print("Testing FxvMetaHelper...")
+	var norm = FxvMetaHelper.normalize_separators("res:\\test\\path\\")
+	assert(norm == "res:/test/path", "Normalize failed: " + norm)
+
+	var comp = FxvMetaHelper.get_companion_import_path("icon.svg")
+	assert(comp == "icon.svg.import", "Companion import failed")
+
+	var base = FxvMetaHelper.get_logical_asset_path("icon.svg.import")
+	assert(base == "icon.svg", "Logical asset failed")
+	print("FxvMetaHelper OK.")
+
+func test_dto():
+	print("Testing FxvDto...")
+	var file_dict = {
+		"path": "scenes/main.tscn",
+		"workspace_state": "modified",
+		"size": 2048
+	}
+	var item = FxvDto.FileStatusItem.from_dict(file_dict)
+	assert(item.path == "scenes/main.tscn", "Path mismatch")
+	assert(item.needs_snapshot == true, "Should need snapshot")
+	assert(item.effective_state == "modified", "Effective state mismatch")
+	print("FxvDto OK.")
