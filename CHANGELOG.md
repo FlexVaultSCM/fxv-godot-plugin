@@ -20,6 +20,12 @@
   `logout_async()` are unchanged for anything that still wants to call them
   programmatically.
 
+### Added
+- The toolbar's **Sync Workspace** button now shows the revs-behind count (e.g. "Sync
+  Workspace (2 revs behind)") and highlights in orange whenever the published branch has
+  changes the workspace hasn't pulled yet. Previously the only indicator was the smaller
+  "(N revs behind)" text tucked into the branch/user label, easy to miss.
+
 ### Changed
 - Removed the toolbar's **Refresh** button. Status already auto-refreshes on a 10s poll and
   on a debounced watch of Godot's resource filesystem, so it was almost always redundant;

@@ -269,8 +269,16 @@ func _on_state_changed() -> void:
 
 	if status != null:
 		var behind := ""
-		if status.sync_status != null and not status.sync_status.up_to_date:
+		var is_behind := status.sync_status != null and not status.sync_status.up_to_date
+		if is_behind:
 			behind = " (%d revs behind)" % status.sync_status.revisions_behind
+			_sync_btn.text = "Sync Workspace%s" % behind
+			_sync_btn.add_theme_color_override("font_color", Color(1.0, 0.7, 0.2))
+			_sync_btn.tooltip_text = "The published branch has changes not yet in your workspace. Click to sync."
+		else:
+			_sync_btn.text = "Sync Workspace"
+			_sync_btn.remove_theme_color_override("font_color")
+			_sync_btn.tooltip_text = ""
 		var unpublished := ""
 		if status.unpublished_changes > 0:
 			unpublished = " | %d unpublished change%s" % [status.unpublished_changes, "" if status.unpublished_changes == 1 else "s"]
