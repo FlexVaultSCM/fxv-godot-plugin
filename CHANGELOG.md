@@ -4,7 +4,9 @@
 
 ### Changed
 - The Changes tab's tree/description split now starts at 50% width instead of the
-  description panel being squeezed down to its 240px minimum by default.
+  description panel being squeezed down to its 240px minimum by default. Re-centers on
+  every layout pass (the dock resizes more than once while the project loads) until the
+  user actually drags the divider.
 - Removed the bottom dock's **Log Out** button. It's a rare, deliberate action that doesn't
   belong next to the common toolbar actions where it's easy to click by accident; use
   `fxv logout` directly if you need to switch users. `FxvRunner.logout()` /
