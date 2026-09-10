@@ -10,6 +10,10 @@
   dock that Snapshot had already run and only Publish remained.
 
 ### Changed
+- The History tab's revision list / changed-files detail split now actually starts at 50%
+  height, for the same reason as the Changes tab split below: `details_container` had a
+  100px minimum but no `SIZE_EXPAND_FILL`, so the revision list claimed all the extra
+  height by default and the detail panel stayed pinned to its 100px floor.
 - The Changes tab's tree/description split now actually starts at 50% width. The
   description panel (`commit_panel`) was missing `SIZE_EXPAND_FILL`, so Godot's default
   split position already gave it just its 240px minimum; the previous fix tried to correct

@@ -218,6 +218,7 @@ func _build_ui() -> void:
 
 	var details_container := VBoxContainer.new()
 	details_container.custom_minimum_size = Vector2(0, 100)
+	details_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	history_split.add_child(details_container)
 
 	_history_details_label = Label.new()
