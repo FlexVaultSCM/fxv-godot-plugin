@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-10
+
 ### Added
 - Loading spinner in the toolbar while a CLI operation is in flight.
 - Unpublished change count in the status header and "(unpublished)" tags in the Changes tab.
