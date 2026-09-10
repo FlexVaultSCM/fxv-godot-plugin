@@ -14,6 +14,7 @@ const MENU_REVERT: String = "FlexVault: Revert Selection"
 const MENU_DIFF: String = "FlexVault: Diff Selection Against Base"
 const MENU_RESOLVE_MINE: String = "FlexVault: Resolve Selection (Mine)"
 const MENU_RESOLVE_THEIRS: String = "FlexVault: Resolve Selection (Theirs)"
+const MENU_IGNORE: String = "FlexVault: Ignore Selection (.fxvignore)"
 
 static var _confirm_dialog: ConfirmationDialog = null
 
@@ -23,6 +24,7 @@ static func register_actions(plugin: EditorPlugin) -> void:
 	plugin.add_tool_menu_item(MENU_DIFF, Callable(FxvContextMenu, "_on_diff"))
 	plugin.add_tool_menu_item(MENU_RESOLVE_MINE, Callable(FxvContextMenu, "_on_resolve").bind("mine"))
 	plugin.add_tool_menu_item(MENU_RESOLVE_THEIRS, Callable(FxvContextMenu, "_on_resolve").bind("theirs"))
+	plugin.add_tool_menu_item(MENU_IGNORE, Callable(FxvContextMenu, "_on_ignore"))
 
 
 static func unregister_actions(plugin: EditorPlugin) -> void:
@@ -30,6 +32,7 @@ static func unregister_actions(plugin: EditorPlugin) -> void:
 	plugin.remove_tool_menu_item(MENU_DIFF)
 	plugin.remove_tool_menu_item(MENU_RESOLVE_MINE)
 	plugin.remove_tool_menu_item(MENU_RESOLVE_THEIRS)
+	plugin.remove_tool_menu_item(MENU_IGNORE)
 	if _confirm_dialog != null:
 		_confirm_dialog.queue_free()
 		_confirm_dialog = null
@@ -114,6 +117,69 @@ static func _on_resolve(mode: String) -> void:
 					push_error("[FlexVault] Resolve failed: " + res.error_message)
 			)
 	)
+
+
+static func _on_ignore() -> void:
+	if not FxvSettings.is_in_flexvault_repository():
+		return
+	var paths := _get_selected_repo_paths()
+	if paths.is_empty():
+		push_warning("[FlexVault] Select one or more files in the FileSystem dock first.")
+		return
+
+	var entries: Array = []
+	for p in paths:
+		entries.append(p)
+		entries.append(FxvMetaHelper.get_companion_import_path(p))
+		entries.append(FxvMetaHelper.get_companion_uid_path(p))
+
+	var repo_root := FxvSettings.get_repository_root()
+	_confirm(
+		"Add %d selected item(s) and their companion .import/.uid files to .fxvignore?" % paths.size(),
+		func() -> void:
+			var added := _append_unique_lines(repo_root.path_join(".fxvignore"), entries)
+			var gitignore_path := repo_root.path_join(".gitignore")
+			if FileAccess.file_exists(gitignore_path):
+				_append_unique_lines(gitignore_path, entries)
+			print("[FlexVault] Appended %d path(s) to .fxvignore" % added)
+	)
+
+
+## Appends any lines not already present in the file. Returns how many were added.
+static func _append_unique_lines(file_path: String, lines: Array) -> int:
+	var existing := {}
+	var needs_leading_newline := false
+
+	if FileAccess.file_exists(file_path):
+		var reader := FileAccess.open(file_path, FileAccess.READ)
+		if reader != null:
+			var content := reader.get_as_text()
+			reader.close()
+			for line in content.split("\n"):
+				existing[line.strip_edges()] = true
+			needs_leading_newline = not content.is_empty() and not content.ends_with("\n")
+
+	var to_add: Array = []
+	for line in lines:
+		var trimmed := str(line).strip_edges()
+		if not trimmed.is_empty() and not existing.has(trimmed):
+			to_add.append(trimmed)
+			existing[trimmed] = true
+
+	if to_add.is_empty():
+		return 0
+
+	var writer := FileAccess.open(file_path, FileAccess.READ_WRITE if FileAccess.file_exists(file_path) else FileAccess.WRITE)
+	if writer == null:
+		push_error("[FlexVault] Could not open '%s' for writing." % file_path)
+		return 0
+	writer.seek_end()
+	if needs_leading_newline:
+		writer.store_line("")
+	for line in to_add:
+		writer.store_line(line)
+	writer.close()
+	return to_add.size()
 
 
 static func _confirm(message: String, on_confirmed: Callable) -> void:

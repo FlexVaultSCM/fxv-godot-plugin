@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Added
+- **Project > Tools > FlexVault: Ignore Selection (.fxvignore)** appends the current
+  FileSystem dock selection, plus their companion `.import`/`.uid` files, to
+  `.fxvignore`, mirroring into `.gitignore` if one is present. Adding an ignore rule
+  previously meant leaving the editor to hand-edit the file.
 - The bottom dock toolbar now has a username field with Log In / Log Out buttons wired
   to `FxvRunner.login()` / `logout()`, which previously had no UI entry point at all —
   authenticating required a separate terminal running `fxv login <username>`.
