@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### Fixed
+- The History tab no longer flickers and drops its selection during routine background
+  status refreshes (the 10s poll, or the new debounced filesystem-change refresh).
+  Every status update was unconditionally clearing and rebuilding the whole history tree
+  whenever the History tab was open, discarding the current selection and its loaded
+  change-info detail. It now only reloads when the workspace head has actually moved
+  since the last load, and re-selects the previously selected revision (restoring its
+  cached change-info instantly) when it does reload.
 - History row selection no longer discards the actual `changeinfo` failure reason behind
   a generic "Failed to load changed files" message. The History tab also no longer
   attempts `changeinfo` for a row that is an unpublished local draft with no prior

@@ -36,6 +36,7 @@ var _goto_btn: Button
 var _history_details_tree: Tree
 var _history_details_label: Label
 var _change_info_cache: Dictionary = {}
+var _history_loaded_fingerprint: String = ""
 
 var _confirm_dialog: ConfirmationDialog
 
@@ -255,7 +256,7 @@ func _connect_signals() -> void:
 
 func _on_tab_changed(tab_idx: int) -> void:
 	if tab_idx == 1: # History tab
-		_load_history()
+		_load_history(false)
 
 func _on_state_changed() -> void:
 	var cache := FxvStateCache.get_instance()
@@ -274,7 +275,10 @@ func _on_state_changed() -> void:
 
 	_update_changes_tree()
 	if _tabs.current_tab == 1:
-		_load_history()
+		# Unforced: skips the reload (and the selection loss that comes with it) unless
+		# the workspace head actually moved, so routine background status polls while the
+		# History tab is open don't flicker or drop the current selection.
+		_load_history(false)
 
 func _update_changes_tree() -> void:
 	_changes_tree.clear()
@@ -479,19 +483,39 @@ func _on_resolve_pressed(mode: String) -> void:
 			push_error("[FlexVault] Resolve failed: " + res.error_message)
 	)
 
-func _load_history() -> void:
+## Cheap signature of "what history should currently look like." Used to skip redundant
+## reloads (and the selection loss / flicker they cause) when nothing has actually
+## changed since the last load, e.g. a routine background status poll.
+func _current_history_fingerprint() -> String:
+	var status := FxvStateCache.get_instance().get_latest_status()
+	if status == null:
+		return ""
+	return "%s|%s" % [status.current_branch, status.head_revision_display]
+
+
+## `force`: always reload (used by the Refresh History button and the initial load).
+## When false, skips the reload entirely if the workspace head hasn't moved since the
+## last successful load, so the tree, selection, and loaded change-info detail are left
+## untouched.
+func _load_history(force: bool = true) -> void:
+	if not force and _history_tree.get_root() != null:
+		var fp := _current_history_fingerprint()
+		if not fp.is_empty() and fp == _history_loaded_fingerprint:
+			return
+
+	var previously_selected_rev := _get_selected_history_revision()
+
 	_history_tree.clear()
 	_history_tree.create_item()
 	_history_details_tree.clear()
 	_history_details_label.text = "Select a revision to see changed files."
-	_change_info_cache.clear()
 
 	_status_label.text = "Loading history..."
 	_set_busy(true)
-	FxvRunner.get_history_async(_on_history_loaded, 50)
+	FxvRunner.get_history_async(_on_history_loaded.bind(previously_selected_rev), 50)
 
 
-func _on_history_loaded(res: FxvRunner.FxvResult) -> void:
+func _on_history_loaded(res: FxvRunner.FxvResult, previously_selected_rev: String) -> void:
 	_set_busy(false)
 	var root := _history_tree.get_root()
 	if root == null:
@@ -509,9 +533,12 @@ func _on_history_loaded(res: FxvRunner.FxvResult) -> void:
 			elif latest_status.head_commit.published_head != null:
 				current_hash = latest_status.head_commit.published_head.commit_hash
 
+		var restored_item: TreeItem = null
 		for entry in hp.entries:
 			var item := _history_tree.create_item(root)
 			item.set_metadata(0, entry)
+			if not previously_selected_rev.is_empty() and entry.revision_display == previously_selected_rev:
+				restored_item = item
 			var is_current := false
 			if not current_rev.is_empty() and entry.revision_display == current_rev:
 				is_current = true
@@ -530,6 +557,13 @@ func _on_history_loaded(res: FxvRunner.FxvResult) -> void:
 				var highlight_col := Color(0.4, 0.8, 1.0) # Accent cyan/blue
 				for col_idx in range(4):
 					item.set_custom_color(col_idx, highlight_col)
+
+		if restored_item != null:
+			restored_item.select(0)
+			if _change_info_cache.has(previously_selected_rev):
+				_render_change_info(previously_selected_rev, _change_info_cache[previously_selected_rev])
+
+		_history_loaded_fingerprint = _current_history_fingerprint()
 		_status_label.text = "History loaded (%d commits)." % hp.entries.size()
 	else:
 		_status_label.text = "Failed to load history."
