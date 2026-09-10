@@ -1,4 +1,4 @@
-﻿@tool
+@tool
 class_name FxvMetaHelper
 extends RefCounted
 
@@ -108,13 +108,16 @@ static func to_project_res_path(p_path: String, repo_root: String, project_root:
 
 
 ## Expands a list of file or folder paths to include companion .import and .uid files,
-## and recursively enumerates directories if present on disk.
+## but only if they actually exist on disk or in the known files list.
 static func expand_with_companions(
 	paths: Array,
 	repo_root: String,
 	known_files: Array = []
 ) -> Array:
 	var result_set: Dictionary = {}
+	var known_set: Dictionary = {}
+	for kf in known_files:
+		known_set[normalize_separators(str(kf))] = true
 
 	for raw in paths:
 		if str(raw).strip_edges().is_empty():
@@ -127,7 +130,7 @@ static func expand_with_companions(
 		var dir_access := DirAccess.open(abs_path)
 		if dir_access != null:
 			# It's an existing directory on disk
-			_safe_enumerate_directory(abs_path, repo_root, result_set)
+			_safe_enumerate_directory(abs_path, repo_root, known_set, result_set)
 		else:
 			# Check if it was a deleted directory in known_files
 			var folder_prefix := normalize_separators(repo_rel).trim_suffix("/") + "/"
@@ -137,11 +140,11 @@ static func expand_with_companions(
 				if normalize_separators(kf_str).begins_with(folder_prefix):
 					is_deleted_folder = true
 					result_set[kf_str] = true
-					_add_companion_if_appropriate(kf_str, result_set)
+					_add_companion_if_appropriate(kf_str, repo_root, known_set, result_set)
 
 			if not is_deleted_folder:
 				result_set[repo_rel] = true
-				_add_companion_if_appropriate(repo_rel, result_set)
+				_add_companion_if_appropriate(repo_rel, repo_root, known_set, result_set)
 
 	var res_array: Array = []
 	for k in result_set.keys():
@@ -150,23 +153,41 @@ static func expand_with_companions(
 	return res_array
 
 
-static func _add_companion_if_appropriate(repo_rel: String, out_set: Dictionary) -> void:
+static func _add_companion_if_appropriate(
+	repo_rel: String,
+	repo_root: String,
+	known_set: Dictionary,
+	out_set: Dictionary
+) -> void:
 	if is_import_file(repo_rel):
 		var base_asset := get_logical_asset_path(repo_rel)
-		out_set[base_asset] = true
+		var base_abs := to_absolute_path(base_asset, repo_root)
+		if FileAccess.file_exists(base_abs) or known_set.has(base_asset):
+			out_set[base_asset] = true
 	else:
 		var companion_import := get_companion_import_path(repo_rel)
-		out_set[companion_import] = true
+		var import_abs := to_absolute_path(companion_import, repo_root)
+		if FileAccess.file_exists(import_abs) or known_set.has(companion_import):
+			out_set[companion_import] = true
 
 	if is_uid_file(repo_rel):
 		var base_asset := get_logical_asset_path(repo_rel)
-		out_set[base_asset] = true
+		var base_abs := to_absolute_path(base_asset, repo_root)
+		if FileAccess.file_exists(base_abs) or known_set.has(base_asset):
+			out_set[base_asset] = true
 	else:
 		var companion_uid := get_companion_uid_path(repo_rel)
-		out_set[companion_uid] = true
+		var uid_abs := to_absolute_path(companion_uid, repo_root)
+		if FileAccess.file_exists(uid_abs) or known_set.has(companion_uid):
+			out_set[companion_uid] = true
 
 
-static func _safe_enumerate_directory(abs_dir: String, repo_root: String, out_set: Dictionary) -> void:
+static func _safe_enumerate_directory(
+	abs_dir: String,
+	repo_root: String,
+	known_set: Dictionary,
+	out_set: Dictionary
+) -> void:
 	var da := DirAccess.open(abs_dir)
 	if da == null:
 		return
@@ -177,10 +198,11 @@ static func _safe_enumerate_directory(abs_dir: String, repo_root: String, out_se
 		if item_name != "." and item_name != ".." and item_name != ".godot" and item_name != ".fxv_workspace":
 			var item_abs := abs_dir.path_join(item_name)
 			if da.current_is_dir():
-				_safe_enumerate_directory(item_abs, repo_root, out_set)
+				_safe_enumerate_directory(item_abs, repo_root, known_set, out_set)
 			else:
 				var repo_rel := to_repo_relative_path(item_abs, repo_root)
 				out_set[repo_rel] = true
-				_add_companion_if_appropriate(repo_rel, out_set)
+				_add_companion_if_appropriate(repo_rel, repo_root, known_set, out_set)
 		item_name = da.get_next()
 	da.list_dir_end()
+

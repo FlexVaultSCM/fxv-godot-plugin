@@ -1,4 +1,4 @@
-﻿@tool
+@tool
 class_name FxvRunner
 extends RefCounted
 
@@ -19,6 +19,7 @@ static func ensure_version_checked(custom_binary_path: String = "") -> bool:
 
 	var bin_path := custom_binary_path if not custom_binary_path.is_empty() else FxvSettings.get_effective_binary_path()
 	if bin_path.is_empty():
+		FxvVersionGuard.set_incompatible("FlexVault CLI executable (fxv) could not be located.")
 		return false
 
 	var output: Array = []
@@ -29,7 +30,9 @@ static func ensure_version_checked(custom_binary_path: String = "") -> bool:
 		var version_part := parts[1] if parts.size() > 1 else parts[0]
 		return FxvVersionGuard.check_and_cache(version_part)
 
+	FxvVersionGuard.set_incompatible("Failed to execute '%s --version' (exit code %d)." % [bin_path, exit_code])
 	return false
+
 
 
 static func run_command(
@@ -72,13 +75,9 @@ static func run_command(
 		full_args.append("--no-color")
 
 	# Execute CLI
-	# Note: OS.execute in Godot captures stdout and stderr combined into the output array.
 	var output: Array = []
-	var prev_dir := ""
-	# On desktop systems, changing directory or running with proper working directory is essential
 	var exit_code: int = -1
 
-	# We can use OS.execute
 	# In Godot 4, OS.execute(path, args, output, read_stderr, open_console)
 	exit_code = OS.execute(bin_path, full_args, output, true)
 
@@ -239,11 +238,17 @@ static func cat_to_file(repo_relative_path: String, revision: String, destinatio
 		return false
 
 	var bin_path := FxvSettings.get_effective_binary_path()
-	var working_dir := FxvSettings.get_repository_root()
+	if bin_path.is_empty():
+		return false
 
 	var output: Array = []
-	var args := ["cat", revision, repo_relative_path]
-	var exit_code := OS.execute(bin_path, args, output, true)
+	var args := ["cat"]
+	if not revision.is_empty():
+		args.append("-r")
+		args.append(revision)
+	args.append(repo_relative_path)
+
+	var exit_code := OS.execute(bin_path, args, output, false)
 
 	if exit_code == 0 and output.size() > 0:
 		var raw: String = str(output[0])
@@ -253,3 +258,4 @@ static func cat_to_file(repo_relative_path: String, revision: String, destinatio
 			f.close()
 			return true
 	return false
+

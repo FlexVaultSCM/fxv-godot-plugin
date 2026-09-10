@@ -1,4 +1,4 @@
-﻿import os
+import os
 import unittest
 
 def normalize_separators(path):
@@ -59,9 +59,12 @@ def to_repo_relative_path(path, repo_root, project_root=""):
 
     return norm_path
 
-def expand_with_companions(paths, repo_root, known_files=None):
+def expand_with_companions(paths, repo_root, known_files=None, existing_files=None):
     if known_files is None:
         known_files = []
+    if existing_files is None:
+        existing_files = set()
+    known_set = set(normalize_separators(f) for f in known_files) | existing_files
     result = set()
     for raw in paths:
         if not raw or not raw.strip():
@@ -69,14 +72,22 @@ def expand_with_companions(paths, repo_root, known_files=None):
         rel = to_repo_relative_path(raw, repo_root)
         result.add(rel)
         if is_import_file(rel):
-            result.add(get_logical_asset_path(rel))
+            base = get_logical_asset_path(rel)
+            if base in known_set:
+                result.add(base)
         else:
-            result.add(get_companion_import_path(rel))
+            comp_import = get_companion_import_path(rel)
+            if comp_import in known_set:
+                result.add(comp_import)
 
         if is_uid_file(rel):
-            result.add(get_logical_asset_path(rel))
+            base = get_logical_asset_path(rel)
+            if base in known_set:
+                result.add(base)
         else:
-            result.add(get_companion_uid_path(rel))
+            comp_uid = get_companion_uid_path(rel)
+            if comp_uid in known_set:
+                result.add(comp_uid)
     return sorted(list(result))
 
 class TestMetaHelper(unittest.TestCase):
@@ -101,10 +112,16 @@ class TestMetaHelper(unittest.TestCase):
 
     def test_expand_with_companions(self):
         repo_root = "C:/Workspace"
-        expanded = expand_with_companions(["scenes/player.tscn"], repo_root)
+        # When companion files exist in known_files
+        expanded = expand_with_companions(["scenes/player.tscn"], repo_root, known_files=["scenes/player.tscn.import"])
         self.assertIn("scenes/player.tscn", expanded)
         self.assertIn("scenes/player.tscn.import", expanded)
-        self.assertIn("scenes/player.tscn.uid", expanded)
+        self.assertNotIn("scenes/player.tscn.uid", expanded)
+
+        # When no companions exist, only the file itself is returned
+        isolated = expand_with_companions(["scenes/player.tscn"], repo_root)
+        self.assertEqual(isolated, ["scenes/player.tscn"])
+
 
 if __name__ == "__main__":
     unittest.main()

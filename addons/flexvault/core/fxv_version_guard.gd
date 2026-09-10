@@ -1,4 +1,4 @@
-﻿@tool
+@tool
 class_name FxvVersionGuard
 extends RefCounted
 
@@ -128,6 +128,12 @@ static func reset_cached_version() -> void:
 	_cached_is_compatible = null
 	_cached_version_string = ""
 	_cached_error_message = ""
+
+
+static func set_incompatible(error_msg: String) -> void:
+	_cached_is_compatible = false
+	_cached_version_string = ""
+	_cached_error_message = error_msg
 
 
 static func is_compatible() -> Variant:

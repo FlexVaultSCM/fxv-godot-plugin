@@ -1,4 +1,4 @@
-﻿@tool
+@tool
 class_name FxvDiffHelper
 extends RefCounted
 
@@ -73,15 +73,17 @@ static func diff_file_against_base(repo_relative_path: String, explicit_base_rev
 
 
 static func open_diff_tool(left_path: String, right_path: String) -> void:
-	# 1. Custom tool from environment or EditorSettings
-	var custom_diff_tool := OS.get_environment("FXV_DIFF_TOOL")
+	# 1. Custom tool from EditorSettings or environment
+	var custom_diff_tool := FxvSettings.get_diff_tool()
+	if custom_diff_tool.is_empty():
+		custom_diff_tool = OS.get_environment("FXV_DIFF_TOOL")
 	if custom_diff_tool.is_empty():
 		custom_diff_tool = OS.get_environment("DIFF")
 
 	if not custom_diff_tool.is_empty():
-		var out: Array = []
-		OS.execute(custom_diff_tool, [left_path, right_path], out, false)
-		return
+		var pid := OS.create_process(custom_diff_tool, [left_path, right_path], false)
+		if pid > 0:
+			return
 
 	# 2. Check popular diff tools
 	var candidates: Array = []
@@ -104,16 +106,16 @@ static func open_diff_tool(left_path: String, right_path: String) -> void:
 
 	for cand in candidates:
 		var cand_str: String = str(cand)
-		if cand_str.ends_with("code") or cand_str.ends_with("Code.exe") or cand_str.ends_with("code.cmd"):
-			var out: Array = []
-			var exit := OS.execute(cand_str, ["--diff", left_path, right_path], out, false)
-			if exit == 0 or exit == -1: # -1 indicates launched asynchronously or successfully detached
-				return
-		elif FileAccess.file_exists(cand_str) or not cand_str.contains("/") and not cand_str.contains("\\"):
-			var out: Array = []
-			var exit := OS.execute(cand_str, [left_path, right_path], out, false)
-			if exit == 0 or exit == -1:
-				return
+		var is_code := cand_str.ends_with("code") or cand_str.ends_with("Code.exe") or cand_str.ends_with("code.cmd")
+		var diff_args := ["--diff", left_path, right_path] if is_code else [left_path, right_path]
+
+		if (cand_str.contains("/") or cand_str.contains("\\")) and not FileAccess.file_exists(cand_str):
+			continue
+
+		var pid := OS.create_process(cand_str, diff_args, false)
+		if pid > 0:
+			return
 
 	# Fallback: open directory or file
 	OS.shell_open(ProjectSettings.globalize_path(right_path))
+

@@ -1,4 +1,4 @@
-﻿@tool
+@tool
 class_name FxvBottomDock
 extends VBoxContainer
 
@@ -29,6 +29,8 @@ var _history_tree: Tree
 var _history_refresh_btn: Button
 var _goto_btn: Button
 
+var _confirm_dialog: ConfirmationDialog
+
 func _init() -> void:
 	name = "FlexVault"
 	custom_minimum_size = Vector2(400, 250)
@@ -38,9 +40,15 @@ func _ready() -> void:
 	_connect_signals()
 
 func _build_ui() -> void:
+	_confirm_dialog = ConfirmationDialog.new()
+	_confirm_dialog.title = "Confirm Revert"
+	_confirm_dialog.confirmed.connect(_execute_revert)
+	add_child(_confirm_dialog)
+
 	# Top Toolbar
 	var toolbar := HBoxContainer.new()
 	add_child(toolbar)
+
 
 	_refresh_btn = Button.new()
 	_refresh_btn.text = "Refresh"
@@ -275,15 +283,26 @@ func _on_sync_pressed() -> void:
 		push_error("[FlexVault] Sync failed: " + res.error_message)
 
 func _on_revert_pressed() -> void:
-	if not FxvSafetyGuards.ensure_safe_to_mutate("Revert"):
-		return
 	var paths := _get_selected_paths()
 	if paths.size() == 0:
 		_status_label.text = "No files selected to revert."
 		return
 
+	_confirm_dialog.dialog_text = "Are you sure you want to revert %d selected file(s)? Any uncommitted changes in these files will be permanently lost." % paths.size()
+	_confirm_dialog.popup_centered()
+
+func _execute_revert() -> void:
+	if not FxvSafetyGuards.ensure_safe_to_mutate("Revert", false):
+		return
+	var paths := _get_selected_paths()
+	if paths.size() == 0:
+		return
+
 	var repo_root := FxvSettings.get_repository_root()
-	var expanded := FxvMetaHelper.expand_with_companions(paths, repo_root)
+	var known: Array = []
+	for item in FxvStateCache.get_instance().get_changed_files():
+		known.append(item.path)
+	var expanded := FxvMetaHelper.expand_with_companions(paths, repo_root, known)
 
 	_status_label.text = "Reverting..."
 	var res := FxvRunner.revert(expanded)
@@ -308,7 +327,10 @@ func _on_resolve_pressed(mode: String) -> void:
 		return
 	var paths := _get_selected_paths()
 	var repo_root := FxvSettings.get_repository_root()
-	var expanded := FxvMetaHelper.expand_with_companions(paths, repo_root) if paths.size() > 0 else []
+	var known: Array = []
+	for item in FxvStateCache.get_instance().get_changed_files():
+		known.append(item.path)
+	var expanded := FxvMetaHelper.expand_with_companions(paths, repo_root, known) if paths.size() > 0 else []
 
 	_status_label.text = "Resolving..."
 	var res := FxvRunner.resolve(mode, expanded)
@@ -333,10 +355,12 @@ func _load_history() -> void:
 			item.set_text(0, entry.revision_display)
 			item.set_text(1, entry.author_display_name if not entry.author_display_name.is_empty() else entry.author_id)
 			item.set_text(2, entry.description)
-			item.set_text(3, entry.commit_hash.substr(0, 8))
+			var hash_str := entry.commit_hash.substr(0, 8) if not entry.commit_hash.is_empty() else "-"
+			item.set_text(3, hash_str)
 		_status_label.text = "History loaded (%d commits)." % hp.entries.size()
 	else:
 		_status_label.text = "Failed to load history."
+
 
 func _on_goto_pressed() -> void:
 	var selected := _history_tree.get_selected()

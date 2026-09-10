@@ -1,4 +1,4 @@
-﻿@tool
+@tool
 class_name FxvStateCache
 extends RefCounted
 
@@ -21,6 +21,19 @@ var _latest_status: FxvDto.StatusPayload = null
 var _is_refreshing: bool = false
 var _last_refresh_time: float = 0.0
 
+static func _normalize_cache_key(p: String) -> String:
+	var norm := FxvMetaHelper.normalize_separators(p)
+	if OS.get_name() == "Windows":
+		return norm.to_lower()
+	return norm
+
+func clear() -> void:
+	_latest_status = null
+	_path_to_status.clear()
+	_changed_files.clear()
+	_workspace_changes.clear()
+	_unpublished_changes.clear()
+
 func is_refreshing() -> bool:
 	return _is_refreshing
 
@@ -32,8 +45,9 @@ func get_status_by_path(path: String) -> FxvDto.FileStatusItem:
 		return null
 	var repo_root := FxvSettings.get_repository_root()
 	var proj_root := FxvSettings.get_project_root()
-	var rel := FxvMetaHelper.to_repo_relative_path(path, repo_root, proj_root).to_lower()
+	var rel := _normalize_cache_key(FxvMetaHelper.to_repo_relative_path(path, repo_root, proj_root))
 	return _path_to_status.get(rel, null)
+
 
 func get_changed_files() -> Array[FxvDto.FileStatusItem]:
 	return _changed_files.duplicate()
@@ -90,7 +104,7 @@ func _apply_status(status: FxvDto.StatusPayload) -> void:
 		if file == null or file.path.is_empty():
 			continue
 
-		var norm_path := FxvMetaHelper.normalize_separators(file.path).to_lower()
+		var norm_path := _normalize_cache_key(file.path)
 		_path_to_status[norm_path] = file
 
 		if file.needs_snapshot or file.is_unpublished or file.is_conflicted:

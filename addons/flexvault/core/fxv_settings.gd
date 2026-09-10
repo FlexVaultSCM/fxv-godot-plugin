@@ -1,4 +1,4 @@
-﻿@tool
+@tool
 class_name FxvSettings
 extends RefCounted
 
@@ -12,7 +12,60 @@ const SETTING_TIMEOUT_SECONDS: String = "version_control/flexvault/timeout_secon
 static var _cached_repo_root: String = ""
 static var _searched_repo_root: bool = false
 
+static func register_settings() -> void:
+	if not Engine.is_editor_hint():
+		return
+	var editor_settings := EditorInterface.get_editor_settings()
+	if editor_settings == null:
+		return
+
+	if not editor_settings.has_setting(SETTING_BINARY_PATH):
+		editor_settings.set_setting(SETTING_BINARY_PATH, "")
+	editor_settings.add_property_info({
+		"name": SETTING_BINARY_PATH,
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_FILE,
+		"hint_string": "*.exe" if OS.get_name() == "Windows" else ""
+	})
+
+	if not editor_settings.has_setting(SETTING_DIFF_TOOL):
+		editor_settings.set_setting(SETTING_DIFF_TOOL, "")
+	editor_settings.add_property_info({
+		"name": SETTING_DIFF_TOOL,
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_FILE,
+		"hint_string": "*.exe" if OS.get_name() == "Windows" else ""
+	})
+
+	if not editor_settings.has_setting(SETTING_AUTO_REFRESH):
+		editor_settings.set_setting(SETTING_AUTO_REFRESH, true)
+	editor_settings.add_property_info({
+		"name": SETTING_AUTO_REFRESH,
+		"type": TYPE_BOOL
+	})
+
+
+static func get_diff_tool() -> String:
+	if not Engine.is_editor_hint():
+		return ""
+	var editor_settings := EditorInterface.get_editor_settings()
+	if editor_settings != null and editor_settings.has_setting(SETTING_DIFF_TOOL):
+		return str(editor_settings.get_setting(SETTING_DIFF_TOOL)).strip_edges()
+	return ""
+
+
+static func is_auto_refresh_enabled() -> bool:
+	if not Engine.is_editor_hint():
+		return false
+	var editor_settings := EditorInterface.get_editor_settings()
+	if editor_settings != null and editor_settings.has_setting(SETTING_AUTO_REFRESH):
+		return bool(editor_settings.get_setting(SETTING_AUTO_REFRESH))
+	return true
+
+
 static func get_custom_binary_path() -> String:
+	if not Engine.is_editor_hint():
+		return ""
 	var editor_settings := EditorInterface.get_editor_settings()
 	if editor_settings != null and editor_settings.has_setting(SETTING_BINARY_PATH):
 		return str(editor_settings.get_setting(SETTING_BINARY_PATH))
@@ -20,10 +73,13 @@ static func get_custom_binary_path() -> String:
 
 
 static func set_custom_binary_path(path: String) -> void:
+	if not Engine.is_editor_hint():
+		return
 	var editor_settings := EditorInterface.get_editor_settings()
 	if editor_settings != null:
 		editor_settings.set_setting(SETTING_BINARY_PATH, path)
 	FxvVersionGuard.reset_cached_version()
+
 
 
 static func get_effective_binary_path() -> String:

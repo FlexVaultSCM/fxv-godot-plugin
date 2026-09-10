@@ -1,4 +1,4 @@
-﻿@tool
+@tool
 extends EditorPlugin
 
 ## FlexVault EditorPlugin entry point for Godot Engine.
@@ -8,6 +8,7 @@ var _state_cache: FxvStateCache
 var _auto_refresh_timer: Timer
 
 func _enter_tree() -> void:
+	FxvSettings.register_settings()
 	_state_cache = FxvStateCache.get_instance()
 
 	# Create bottom dock panel
@@ -43,12 +44,20 @@ func _exit_tree() -> void:
 	if _auto_refresh_timer != null:
 		_auto_refresh_timer.queue_free()
 
+	if _state_cache != null:
+		_state_cache.clear()
+
+	FxvSettings.invalidate_repo_root()
+	FxvVersionGuard.reset_cached_version()
+
+
 func _on_request_refresh() -> void:
 	_state_cache.refresh()
 
 func _on_timer_refresh() -> void:
-	if FxvSettings.is_in_flexvault_repository():
+	if FxvSettings.is_auto_refresh_enabled() and FxvSettings.is_in_flexvault_repository():
 		_state_cache.refresh(true) # skip disk scan on periodic background poll
+
 
 func _on_menu_refresh() -> void:
 	_state_cache.refresh()

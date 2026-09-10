@@ -1,4 +1,4 @@
-﻿@tool
+@tool
 extends SceneTree
 
 func _init():
@@ -20,6 +20,11 @@ func test_version_guard():
 
 	var res_old = FxvVersionGuard.check_version("0.4.0")
 	assert(res_old["compatible"] == false, "0.4.0 should be incompatible")
+
+	FxvVersionGuard.set_incompatible("custom error")
+	assert(FxvVersionGuard.is_compatible() == false, "Should be marked incompatible")
+	assert(FxvVersionGuard.get_last_error_message() == "custom error", "Error message mismatch")
+	FxvVersionGuard.reset_cached_version()
 	print("FxvVersionGuard OK.")
 
 func test_meta_helper():
@@ -32,7 +37,19 @@ func test_meta_helper():
 
 	var base = FxvMetaHelper.get_logical_asset_path("icon.svg.import")
 	assert(base == "icon.svg", "Logical asset failed")
+
+	# Test expand_with_companions filtering non-existent companions
+	var repo_root = ProjectSettings.globalize_path("res://")
+	var isolated = FxvMetaHelper.expand_with_companions(["scenes/player.tscn"], repo_root)
+	assert(isolated == ["scenes/player.tscn"], "Non-existent companions must not be added: " + str(isolated))
+
+	# With known_files containing companion
+	var with_comp = FxvMetaHelper.expand_with_companions(["scenes/player.tscn"], repo_root, ["scenes/player.tscn.import"])
+	assert(with_comp.has("scenes/player.tscn"), "Original file missing")
+	assert(with_comp.has("scenes/player.tscn.import"), "Known companion missing")
+	assert(not with_comp.has("scenes/player.tscn.uid"), "Non-existent uid should not be included")
 	print("FxvMetaHelper OK.")
+
 
 func test_dto():
 	print("Testing FxvDto...")
