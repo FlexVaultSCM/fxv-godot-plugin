@@ -263,6 +263,17 @@ func _update_changes_tree() -> void:
 	_resolve_mine_btn.visible = has_conflicts
 	_resolve_theirs_btn.visible = has_conflicts
 
+func _set_busy(busy: bool) -> void:
+	_snapshot_btn.disabled = busy
+	_publish_btn.disabled = busy
+	_sync_btn.disabled = busy
+	_revert_btn.disabled = busy
+	_resolve_mine_btn.disabled = busy
+	_resolve_theirs_btn.disabled = busy
+	_goto_btn.disabled = busy
+	_history_refresh_btn.disabled = busy
+
+
 func _get_selected_paths() -> Array:
 	var paths: Array = []
 	var item := _changes_tree.get_next_selected(null)
@@ -276,14 +287,17 @@ func _on_snapshot_pressed() -> void:
 		return
 	var desc := _commit_msg_edit.text.strip_edges()
 	_status_label.text = "Taking snapshot..."
-	var res := FxvRunner.snapshot(desc)
-	if res.success:
-		_commit_msg_edit.text = ""
-		_status_label.text = "Snapshot taken successfully."
-		request_refresh.emit()
-	else:
-		_status_label.text = "Snapshot failed."
-		push_error("[FlexVault] Snapshot failed: " + res.error_message)
+	_set_busy(true)
+	FxvRunner.snapshot_async(desc, func(res: FxvRunner.FxvResult) -> void:
+		_set_busy(false)
+		if res.success:
+			_commit_msg_edit.text = ""
+			_status_label.text = "Snapshot taken successfully."
+			request_refresh.emit()
+		else:
+			_status_label.text = "Snapshot failed."
+			push_error("[FlexVault] Snapshot failed: " + res.error_message)
+	)
 
 func _on_publish_pressed() -> void:
 	if not FxvSafetyGuards.ensure_safe_to_mutate("Publish"):
@@ -293,27 +307,33 @@ func _on_publish_pressed() -> void:
 		_status_label.text = "Publish requires a description."
 		return
 	_status_label.text = "Publishing..."
-	var res := FxvRunner.publish(desc)
-	if res.success:
-		_commit_msg_edit.text = ""
-		_status_label.text = "Published successfully."
-		request_refresh.emit()
-	else:
-		_status_label.text = "Publish failed."
-		push_error("[FlexVault] Publish failed: " + res.error_message)
+	_set_busy(true)
+	FxvRunner.publish_async(desc, func(res: FxvRunner.FxvResult) -> void:
+		_set_busy(false)
+		if res.success:
+			_commit_msg_edit.text = ""
+			_status_label.text = "Published successfully."
+			request_refresh.emit()
+		else:
+			_status_label.text = "Publish failed."
+			push_error("[FlexVault] Publish failed: " + res.error_message)
+	)
 
 func _on_sync_pressed() -> void:
 	if not FxvSafetyGuards.ensure_safe_to_mutate("Sync Workspace"):
 		return
 	_status_label.text = "Syncing workspace..."
-	var res := FxvRunner.sync_workspace()
-	if res.success:
-		_status_label.text = "Workspace synced."
-		request_refresh.emit()
-		EditorInterface.get_resource_filesystem().scan()
-	else:
-		_status_label.text = "Sync failed."
-		push_error("[FlexVault] Sync failed: " + res.error_message)
+	_set_busy(true)
+	FxvRunner.sync_workspace_async(func(res: FxvRunner.FxvResult) -> void:
+		_set_busy(false)
+		if res.success:
+			_status_label.text = "Workspace synced."
+			request_refresh.emit()
+			EditorInterface.get_resource_filesystem().scan()
+		else:
+			_status_label.text = "Sync failed."
+			push_error("[FlexVault] Sync failed: " + res.error_message)
+	)
 
 func _on_revert_pressed() -> void:
 	var paths := _get_selected_paths()
@@ -338,14 +358,17 @@ func _execute_revert() -> void:
 	var expanded := FxvMetaHelper.expand_with_companions(paths, repo_root, known)
 
 	_status_label.text = "Reverting..."
-	var res := FxvRunner.revert(expanded)
-	if res.success:
-		_status_label.text = "Reverted %d items." % expanded.size()
-		request_refresh.emit()
-		EditorInterface.get_resource_filesystem().scan()
-	else:
-		_status_label.text = "Revert failed."
-		push_error("[FlexVault] Revert failed: " + res.error_message)
+	_set_busy(true)
+	FxvRunner.revert_async(expanded, func(res: FxvRunner.FxvResult) -> void:
+		_set_busy(false)
+		if res.success:
+			_status_label.text = "Reverted %d items." % expanded.size()
+			request_refresh.emit()
+			EditorInterface.get_resource_filesystem().scan()
+		else:
+			_status_label.text = "Revert failed."
+			push_error("[FlexVault] Revert failed: " + res.error_message)
+	)
 
 func _on_diff_pressed() -> void:
 	var paths := _get_selected_paths()
@@ -366,21 +389,33 @@ func _on_resolve_pressed(mode: String) -> void:
 	var expanded := FxvMetaHelper.expand_with_companions(paths, repo_root, known) if paths.size() > 0 else []
 
 	_status_label.text = "Resolving..."
-	var res := FxvRunner.resolve(mode, expanded)
-	if res.success:
-		_status_label.text = "Resolved conflict(s)."
-		request_refresh.emit()
-		EditorInterface.get_resource_filesystem().scan()
-	else:
-		_status_label.text = "Resolve failed."
-		push_error("[FlexVault] Resolve failed: " + res.error_message)
+	_set_busy(true)
+	FxvRunner.resolve_async(mode, expanded, func(res: FxvRunner.FxvResult) -> void:
+		_set_busy(false)
+		if res.success:
+			_status_label.text = "Resolved conflict(s)."
+			request_refresh.emit()
+			EditorInterface.get_resource_filesystem().scan()
+		else:
+			_status_label.text = "Resolve failed."
+			push_error("[FlexVault] Resolve failed: " + res.error_message)
+	)
 
 func _load_history() -> void:
 	_history_tree.clear()
-	var root := _history_tree.create_item()
+	_history_tree.create_item()
 
 	_status_label.text = "Loading history..."
-	var res := FxvRunner.get_history(50)
+	_set_busy(true)
+	FxvRunner.get_history_async(_on_history_loaded, 50)
+
+
+func _on_history_loaded(res: FxvRunner.FxvResult) -> void:
+	_set_busy(false)
+	var root := _history_tree.get_root()
+	if root == null:
+		root = _history_tree.create_item()
+
 	if res.success and res.data is FxvDto.HistoryPayload:
 		var hp: FxvDto.HistoryPayload = res.data
 		var cache := FxvStateCache.get_instance()
@@ -442,11 +477,14 @@ func _on_goto_pressed() -> void:
 		return
 
 	_status_label.text = "Switching workspace to revision %s..." % rev
-	var res := FxvRunner.goto_revision(rev)
-	if res.success:
-		_status_label.text = "Switched to %s." % rev
-		request_refresh.emit()
-		EditorInterface.get_resource_filesystem().scan()
-	else:
-		_status_label.text = "Goto failed."
-		push_error("[FlexVault] Goto revision failed: " + res.error_message)
+	_set_busy(true)
+	FxvRunner.goto_revision_async(rev, func(res: FxvRunner.FxvResult) -> void:
+		_set_busy(false)
+		if res.success:
+			_status_label.text = "Switched to %s." % rev
+			request_refresh.emit()
+			EditorInterface.get_resource_filesystem().scan()
+		else:
+			_status_label.text = "Goto failed."
+			push_error("[FlexVault] Goto revision failed: " + res.error_message)
+	)

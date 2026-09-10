@@ -11,6 +11,10 @@ class FxvResult extends RefCounted:
 	var error_message: String = ""
 	var raw_stdout: String = ""
 	var raw_stderr: String = ""
+	var timed_out: bool = false
+
+
+static var _active_threads: Array[Thread] = []
 
 
 static func ensure_version_checked(custom_binary_path: String = "") -> bool:
@@ -34,7 +38,9 @@ static func ensure_version_checked(custom_binary_path: String = "") -> bool:
 	return false
 
 
-
+## Synchronous execution. Runs the fxv CLI and blocks the calling thread until it exits.
+## Safe to call from a background Thread (see run_command_async); avoid calling this
+## directly from the main/editor thread for any operation that may take noticeable time.
 static func run_command(
 	args: Array,
 	custom_binary_path: String = "",
@@ -121,65 +127,164 @@ static func run_command(
 	return result
 
 
-static func get_status(skip_remote_update: bool = false, skip_scan: bool = false) -> FxvResult:
-	var args := ["status"]
-	if skip_remote_update:
-		args.append("--skip-remote-update")
-	if skip_scan:
-		args.append("--skip-scan")
+## Non-blocking execution. Runs run_command() on a background Thread and delivers the
+## FxvResult back to the caller on the main thread via `callback`, so the editor UI
+## thread is never blocked waiting on the fxv process.
+static func run_command_async(
+	args: Array,
+	callback: Callable,
+	custom_binary_path: String = "",
+	custom_working_dir: String = ""
+) -> void:
+	var thread := Thread.new()
+	_active_threads.append(thread)
 
-	var res := run_command(args)
+	var thread_body := func() -> void:
+		var result := run_command(args, custom_binary_path, custom_working_dir)
+		Callable(FxvRunner, "_finish_async_thread").bind(thread, callback, result).call_deferred()
+
+	thread.start(thread_body)
+
+
+static func _finish_async_thread(thread: Thread, callback: Callable, result: FxvResult) -> void:
+	thread.wait_to_finish()
+	_active_threads.erase(thread)
+	if callback.is_valid():
+		callback.call(result)
+
+
+static func get_status(skip_remote_update: bool = false, skip_scan: bool = false) -> FxvResult:
+	var res := run_command(_status_args(skip_remote_update, skip_scan))
 	if res.success and res.data is Dictionary:
 		res.data = FxvDto.StatusPayload.from_dict(res.data)
 	return res
 
 
+static func get_status_async(callback: Callable, skip_remote_update: bool = false, skip_scan: bool = false) -> void:
+	run_command_async(_status_args(skip_remote_update, skip_scan), func(res: FxvResult) -> void:
+		if res.success and res.data is Dictionary:
+			res.data = FxvDto.StatusPayload.from_dict(res.data)
+		callback.call(res)
+	)
+
+
+static func _status_args(skip_remote_update: bool, skip_scan: bool) -> Array:
+	var args := ["status"]
+	if skip_remote_update:
+		args.append("--skip-remote-update")
+	if skip_scan:
+		args.append("--skip-scan")
+	return args
+
+
 static func snapshot(description: String) -> FxvResult:
+	return run_command(_snapshot_args(description))
+
+
+static func snapshot_async(description: String, callback: Callable) -> void:
+	run_command_async(_snapshot_args(description), callback)
+
+
+static func _snapshot_args(description: String) -> Array:
 	var args := ["snapshot"]
 	if not description.is_empty():
 		args.append("-d")
 		args.append(description)
-	return run_command(args)
+	return args
 
 
 static func publish(description: String) -> FxvResult:
+	return run_command(_publish_args(description))
+
+
+static func publish_async(description: String, callback: Callable) -> void:
+	run_command_async(_publish_args(description), callback)
+
+
+static func _publish_args(description: String) -> Array:
 	var args := ["publish"]
 	if not description.is_empty():
 		args.append("-d")
 		args.append(description)
-	return run_command(args)
+	return args
 
 
 static func sync_workspace(revision: String = "") -> FxvResult:
+	var res := run_command(_sync_args(revision))
+	if res.success and res.data is Dictionary:
+		res.data = FxvDto.WorkspaceSyncPayload.from_dict(res.data)
+	return res
+
+
+static func sync_workspace_async(callback: Callable, revision: String = "") -> void:
+	run_command_async(_sync_args(revision), func(res: FxvResult) -> void:
+		if res.success and res.data is Dictionary:
+			res.data = FxvDto.WorkspaceSyncPayload.from_dict(res.data)
+		callback.call(res)
+	)
+
+
+static func _sync_args(revision: String) -> Array:
 	var args := ["sync"]
 	if not revision.is_empty():
 		args.append(revision)
-	var res := run_command(args)
-	if res.success and res.data is Dictionary:
-		res.data = FxvDto.WorkspaceSyncPayload.from_dict(res.data)
-	return res
+	return args
 
 
 static func goto_revision(revision: String) -> FxvResult:
-	var args := ["goto", revision]
-	var res := run_command(args)
+	var res := run_command(["goto", revision])
 	if res.success and res.data is Dictionary:
 		res.data = FxvDto.WorkspaceSyncPayload.from_dict(res.data)
 	return res
 
 
+static func goto_revision_async(revision: String, callback: Callable) -> void:
+	run_command_async(["goto", revision], func(res: FxvResult) -> void:
+		if res.success and res.data is Dictionary:
+			res.data = FxvDto.WorkspaceSyncPayload.from_dict(res.data)
+		callback.call(res)
+	)
+
+
 static func revert(paths: Array) -> FxvResult:
+	var res := run_command(_revert_args(paths))
+	if res.success and res.data is Dictionary:
+		res.data = FxvDto.WorkspaceSyncPayload.from_dict(res.data)
+	return res
+
+
+static func revert_async(paths: Array, callback: Callable) -> void:
+	run_command_async(_revert_args(paths), func(res: FxvResult) -> void:
+		if res.success and res.data is Dictionary:
+			res.data = FxvDto.WorkspaceSyncPayload.from_dict(res.data)
+		callback.call(res)
+	)
+
+
+static func _revert_args(paths: Array) -> Array:
 	var args := ["revert"]
 	for p in paths:
 		if not str(p).strip_edges().is_empty():
 			args.append(str(p))
-	var res := run_command(args)
+	return args
+
+
+static func resolve(action_mode: String, paths: Array = []) -> FxvResult:
+	var res := run_command(_resolve_args(action_mode, paths))
 	if res.success and res.data is Dictionary:
 		res.data = FxvDto.WorkspaceSyncPayload.from_dict(res.data)
 	return res
 
 
-static func resolve(action_mode: String, paths: Array = []) -> FxvResult:
+static func resolve_async(action_mode: String, paths: Array, callback: Callable) -> void:
+	run_command_async(_resolve_args(action_mode, paths), func(res: FxvResult) -> void:
+		if res.success and res.data is Dictionary:
+			res.data = FxvDto.WorkspaceSyncPayload.from_dict(res.data)
+		callback.call(res)
+	)
+
+
+static func _resolve_args(action_mode: String, paths: Array) -> Array:
 	# action_mode: "mine", "theirs", "undo"
 	var args := ["resolve"]
 	if action_mode == "mine":
@@ -195,14 +300,25 @@ static func resolve(action_mode: String, paths: Array = []) -> FxvResult:
 				args.append(str(p))
 	else:
 		args.append("--all")
-
-	var res := run_command(args)
-	if res.success and res.data is Dictionary:
-		res.data = FxvDto.WorkspaceSyncPayload.from_dict(res.data)
-	return res
+	return args
 
 
 static func get_history(count: int = 30, branch: String = "") -> FxvResult:
+	var res := run_command(_history_args(count, branch))
+	if res.success and res.data is Dictionary:
+		res.data = FxvDto.HistoryPayload.from_dict(res.data)
+	return res
+
+
+static func get_history_async(callback: Callable, count: int = 30, branch: String = "") -> void:
+	run_command_async(_history_args(count, branch), func(res: FxvResult) -> void:
+		if res.success and res.data is Dictionary:
+			res.data = FxvDto.HistoryPayload.from_dict(res.data)
+		callback.call(res)
+	)
+
+
+static func _history_args(count: int, branch: String) -> Array:
 	var args := ["history"]
 	if count > 0:
 		args.append("-n")
@@ -210,27 +326,38 @@ static func get_history(count: int = 30, branch: String = "") -> FxvResult:
 	if not branch.is_empty():
 		args.append("-b")
 		args.append(branch)
-
-	var res := run_command(args)
-	if res.success and res.data is Dictionary:
-		res.data = FxvDto.HistoryPayload.from_dict(res.data)
-	return res
+	return args
 
 
 static func get_change_info(revision: String) -> FxvResult:
-	var args := ["changeinfo", revision]
-	var res := run_command(args)
+	var res := run_command(["changeinfo", revision])
 	if res.success and res.data is Dictionary:
 		res.data = FxvDto.ChangeInfoPayload.from_dict(res.data)
 	return res
+
+
+static func get_change_info_async(revision: String, callback: Callable) -> void:
+	run_command_async(["changeinfo", revision], func(res: FxvResult) -> void:
+		if res.success and res.data is Dictionary:
+			res.data = FxvDto.ChangeInfoPayload.from_dict(res.data)
+		callback.call(res)
+	)
 
 
 static func login(username: String) -> FxvResult:
 	return run_command(["login", username])
 
 
+static func login_async(username: String, callback: Callable) -> void:
+	run_command_async(["login", username], callback)
+
+
 static func logout() -> FxvResult:
 	return run_command(["logout"])
+
+
+static func logout_async(callback: Callable) -> void:
+	run_command_async(["logout"], callback)
 
 
 static func cat_to_file(repo_relative_path: String, revision: String, destination_file_path: String) -> bool:
@@ -259,4 +386,3 @@ static func cat_to_file(repo_relative_path: String, revision: String, destinatio
 			f.close()
 			return true
 	return false
-

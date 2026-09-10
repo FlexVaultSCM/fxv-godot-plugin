@@ -92,8 +92,10 @@ func refresh(skip_remote_update: bool = false, skip_scan: bool = false) -> void:
 
 	_is_refreshing = true
 
-	# Run CLI command
-	var res := FxvRunner.get_status(skip_remote_update, skip_scan)
+	FxvRunner.get_status_async(_on_refresh_complete, skip_remote_update, skip_scan)
+
+
+func _on_refresh_complete(res: FxvRunner.FxvResult) -> void:
 	_is_refreshing = false
 	_last_refresh_time = Time.get_ticks_msec() / 1000.0
 

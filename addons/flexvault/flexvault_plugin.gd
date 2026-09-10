@@ -69,12 +69,13 @@ func _on_menu_refresh() -> void:
 func _on_menu_sync() -> void:
 	if not FxvSafetyGuards.ensure_safe_to_mutate("Sync Workspace"):
 		return
-	var res := FxvRunner.sync_workspace()
-	if res.success:
-		_state_cache.refresh()
-		EditorInterface.get_resource_filesystem().scan()
-	else:
-		push_error("[FlexVault] Sync failed: " + res.error_message)
+	FxvRunner.sync_workspace_async(func(res: FxvRunner.FxvResult) -> void:
+		if res.success:
+			_state_cache.refresh()
+			EditorInterface.get_resource_filesystem().scan()
+		else:
+			push_error("[FlexVault] Sync failed: " + res.error_message)
+	)
 
 func _on_menu_docs() -> void:
 	OS.shell_open("https://docs.fxv.dev")

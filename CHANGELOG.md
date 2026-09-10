@@ -1,5 +1,14 @@
 ﻿# CHANGELOG
 
+## [Unreleased]
+
+### Changed
+- `FxvRunner` now executes the `fxv` CLI on a background `Thread` for every dock and menu
+  action (`run_command_async` plus per-command async wrappers), so Snapshot, Publish,
+  Sync, Goto, Revert, and Resolve no longer freeze the Godot editor while the CLI process
+  runs. The bottom dock disables its action buttons for the duration of an in-flight
+  operation instead.
+
 ## [0.2.0] - 2026-09-10
 
 ### Added
