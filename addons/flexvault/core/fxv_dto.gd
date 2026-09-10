@@ -85,9 +85,12 @@ class CommitInfoDetail extends RefCounted:
 		var c := CommitInfoDetail.new()
 		if d.is_empty(): return c
 		c.branch = d.get("branch", "")
-		c.revision = d.get("revision", null)
+		# JSON.parse_string() decodes every number as float, so an un-cast float(0) renders as
+		# "0.0" via str() and corrupts compound revision strings like "main.0.2" into
+		# "main.0.0.2.0". Cast to int here so revision_display always formats cleanly.
+		c.revision = int(d["revision"]) if d.get("revision") != null else null
 		c.type = d.get("type", "")
-		c.draft_revision = d.get("draft_revision", null)
+		c.draft_revision = int(d["draft_revision"]) if d.get("draft_revision") != null else null
 		return c
 
 
@@ -154,7 +157,7 @@ class SyncStatus extends RefCounted:
 		ss.up_to_date = bool(d.get("up_to_date", true))
 		ss.revisions_behind = int(d.get("revisions_behind", 0))
 		ss.published_head_revision = int(d.get("published_head_revision", 0))
-		ss.synced_revision = d.get("synced_revision", null)
+		ss.synced_revision = int(d["synced_revision"]) if d.get("synced_revision") != null else null
 		return ss
 
 

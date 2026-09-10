@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Fixed
+- Selecting a draft revision in the History tab (e.g. `main.0.2`, a draft with a published
+  parent) no longer fails changeinfo lookups with errors like "Invalid branch revision
+  number: 0.2.0". `JSON.parse_string()` decodes every JSON number as a Godot `float`, and
+  `CommitInfoDetail.revision`/`draft_revision` (and `SyncStatus.synced_revision`) kept that
+  raw float instead of casting to `int`. Formatting a whole-number float with `str()`
+  appends a trailing `.0`, so a revision string like `main.0.2` was actually being sent to
+  the CLI as `main.0.0.2.0`, which fails to parse. Both DTOs now cast these fields to `int`
+  on load.
 - The History tab no longer flickers and drops its selection during routine background
   status refreshes (the 10s poll, or the new debounced filesystem-change refresh).
   Every status update was unconditionally clearing and rebuilding the whole history tree
