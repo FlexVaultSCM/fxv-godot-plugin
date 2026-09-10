@@ -341,7 +341,8 @@ func _on_snapshot_pressed() -> void:
 			_status_label.text = "Snapshot taken successfully."
 			request_refresh.emit()
 		else:
-			_status_label.text = "Snapshot failed."
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Snapshot failed: %s" % reason
 			push_error("[FlexVault] Snapshot failed: " + res.error_message)
 	)
 
@@ -361,7 +362,8 @@ func _on_publish_pressed() -> void:
 			_status_label.text = "Published successfully."
 			request_refresh.emit()
 		else:
-			_status_label.text = "Publish failed."
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Publish failed: %s" % reason
 			push_error("[FlexVault] Publish failed: " + res.error_message)
 	)
 
@@ -382,7 +384,8 @@ func _on_sync_pressed() -> void:
 				EditorInterface.get_resource_filesystem().scan()
 			)
 		else:
-			_status_label.text = "Sync failed."
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Sync failed: %s" % reason
 			push_error("[FlexVault] Sync failed: " + res.error_message)
 	)
 
@@ -400,7 +403,8 @@ func _on_login_pressed() -> void:
 			_status_label.text = "Logged in as '%s'." % username
 			request_refresh.emit()
 		else:
-			_status_label.text = "Login failed."
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Login failed: %s" % reason
 			push_error("[FlexVault] Login failed: " + res.error_message)
 	)
 
@@ -413,7 +417,8 @@ func _on_logout_pressed() -> void:
 			_status_label.text = "Logged out."
 			request_refresh.emit()
 		else:
-			_status_label.text = "Logout failed."
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Logout failed: %s" % reason
 			push_error("[FlexVault] Logout failed: " + res.error_message)
 	)
 
@@ -448,7 +453,8 @@ func _execute_revert() -> void:
 			request_refresh.emit()
 			EditorInterface.get_resource_filesystem().scan()
 		else:
-			_status_label.text = "Revert failed."
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Revert failed: %s" % reason
 			push_error("[FlexVault] Revert failed: " + res.error_message)
 	)
 
@@ -479,7 +485,8 @@ func _on_resolve_pressed(mode: String) -> void:
 			request_refresh.emit()
 			EditorInterface.get_resource_filesystem().scan()
 		else:
-			_status_label.text = "Resolve failed."
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Resolve failed: %s" % reason
 			push_error("[FlexVault] Resolve failed: " + res.error_message)
 	)
 

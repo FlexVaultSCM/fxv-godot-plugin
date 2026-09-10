@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Fixed
+- Snapshot, Publish, Sync, Login, Logout, Revert, and Resolve now show the real CLI error
+  message in the bottom dock's status bar on failure, instead of a generic "X failed."
+  with the actual reason only visible in the console via `push_error`. Same class of bug
+  already fixed for Goto and the History tab's changeinfo lookups.
+
+### Fixed
 - The History tab no longer refuses to load changed files for an unparented local draft
   (a draft with no published parent, revision spec `main.-.N`). The check for this case
   assumed the CLI reports it as revision `-1`, which never happens — the wire format omits
