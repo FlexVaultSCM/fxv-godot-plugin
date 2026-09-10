@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+- The Changes tab's **Diff Base** and **Revert Selected** buttons are now disabled until at
+  least one file is selected in the changes tree, instead of being always-clickable and
+  silently no-op'ing (or, for Revert, popping a confirmation dialog for a revert that
+  affects nothing) when nothing was selected.
+
 ### Fixed
 - Snapshot, Publish, Sync, Login, Logout, Revert, and Resolve now show the real CLI error
   message in the bottom dock's status bar on failure, instead of a generic "X failed."

@@ -39,6 +39,7 @@ var _change_info_cache: Dictionary = {}
 var _history_loaded_fingerprint: String = ""
 
 var _confirm_dialog: ConfirmationDialog
+var _busy: bool = false
 
 func _init() -> void:
 	name = "FlexVault"
@@ -142,10 +143,14 @@ func _build_ui() -> void:
 
 	_diff_btn = Button.new()
 	_diff_btn.text = "Diff Base"
+	_diff_btn.disabled = true
+	_diff_btn.tooltip_text = "Select a file above to diff it against its base revision."
 	tree_actions.add_child(_diff_btn)
 
 	_revert_btn = Button.new()
 	_revert_btn.text = "Revert Selected"
+	_revert_btn.disabled = true
+	_revert_btn.tooltip_text = "Select one or more files above to revert them."
 	tree_actions.add_child(_revert_btn)
 
 	_resolve_mine_btn = Button.new()
@@ -245,6 +250,7 @@ func _connect_signals() -> void:
 	_history_refresh_btn.pressed.connect(_load_history)
 	_goto_btn.pressed.connect(_on_goto_pressed)
 	_history_tree.item_selected.connect(_on_history_row_selected)
+	_changes_tree.multi_selected.connect(func(_item: TreeItem, _column: int, _selected: bool): _update_selection_dependent_buttons())
 	_docs_btn.pressed.connect(func(): OS.shell_open("https://docs.fxv.dev"))
 	_discord_btn.pressed.connect(func(): OS.shell_open("https://discord.gg/KCMHRQBDf"))
 	_login_btn.pressed.connect(_on_login_pressed)
@@ -307,17 +313,28 @@ func _update_changes_tree() -> void:
 	_resolve_mine_btn.visible = has_conflicts
 	_resolve_theirs_btn.visible = has_conflicts
 
+	# Rebuilding the tree above drops any prior selection.
+	_update_selection_dependent_buttons()
+
+## Diff Base only makes sense for a single file; Revert Selected works on any non-empty
+## selection. Both stay disabled with nothing selected instead of no-op'ing on click.
+func _update_selection_dependent_buttons() -> void:
+	var has_selection := _changes_tree.get_next_selected(null) != null
+	_diff_btn.disabled = _busy or not has_selection
+	_revert_btn.disabled = _busy or not has_selection
+
 func _set_busy(busy: bool) -> void:
+	_busy = busy
 	_snapshot_btn.disabled = busy
 	_publish_btn.disabled = busy
 	_sync_btn.disabled = busy
-	_revert_btn.disabled = busy
 	_resolve_mine_btn.disabled = busy
 	_resolve_theirs_btn.disabled = busy
 	_goto_btn.disabled = busy
 	_history_refresh_btn.disabled = busy
 	_login_btn.disabled = busy
 	_logout_btn.disabled = busy
+	_update_selection_dependent_buttons()
 
 
 func _get_selected_paths() -> Array:
