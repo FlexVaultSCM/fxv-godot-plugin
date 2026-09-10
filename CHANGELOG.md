@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Diff Base** no longer launches the external diff tool for a file that has no actual
+  content differences against its base revision (e.g. a file flagged `maybe_changed` by a
+  timestamp-only touch, or otherwise byte-identical to its base). The base revision is now
+  hashed against the working copy first; on a match, the status bar reports "no differences"
+  instead of opening an empty/no-op diff window. Applies to both the Changes tab button and
+  the Tools > FlexVault: Diff Selection Against Base menu item.
+
 ### Changed
 - The Changes tab's **Diff Base** and **Revert Selected** buttons are now disabled until at
   least one file is selected in the changes tree, instead of being always-clickable and

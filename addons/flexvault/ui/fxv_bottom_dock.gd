@@ -481,7 +481,13 @@ func _on_diff_pressed() -> void:
 		_status_label.text = "Select a file to diff."
 		return
 	_status_label.text = "Opening diff viewer..."
-	FxvDiffHelper.diff_file_against_base(paths[0])
+	match FxvDiffHelper.diff_file_against_base(paths[0]):
+		FxvDiffHelper.DiffResult.UNCHANGED:
+			_status_label.text = "%s has no differences against its base revision." % paths[0]
+		FxvDiffHelper.DiffResult.ERROR:
+			_status_label.text = "Failed to open diff for %s." % paths[0]
+		FxvDiffHelper.DiffResult.OPENED:
+			_status_label.text = "Diff viewer opened for %s." % paths[0]
 
 func _on_resolve_pressed(mode: String) -> void:
 	if not FxvSafetyGuards.ensure_safe_to_mutate("Resolve"):

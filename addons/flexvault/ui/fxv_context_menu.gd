@@ -91,7 +91,8 @@ static func _on_diff() -> void:
 	if paths.is_empty():
 		push_warning("[FlexVault] Select a single file in the FileSystem dock first.")
 		return
-	FxvDiffHelper.diff_file_against_base(paths[0])
+	if FxvDiffHelper.diff_file_against_base(paths[0]) == FxvDiffHelper.DiffResult.UNCHANGED:
+		push_warning("[FlexVault] '%s' has no differences against its base revision." % paths[0])
 
 
 static func _on_resolve(mode: String) -> void:

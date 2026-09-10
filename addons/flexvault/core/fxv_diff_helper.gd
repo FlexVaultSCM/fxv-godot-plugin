@@ -4,6 +4,8 @@ extends RefCounted
 
 ## Utility for diffing repository files against their published or local base revisions.
 
+enum DiffResult { OPENED, UNCHANGED, ERROR }
+
 static func get_base_revision_for_file(repo_relative_path: String) -> String:
 	var cache := FxvStateCache.get_instance()
 	var status := cache.get_latest_status()
@@ -40,9 +42,9 @@ static func get_base_revision_for_file(repo_relative_path: String) -> String:
 	return ""
 
 
-static func diff_file_against_base(repo_relative_path: String, explicit_base_revision: String = "") -> bool:
+static func diff_file_against_base(repo_relative_path: String, explicit_base_revision: String = "") -> DiffResult:
 	if repo_relative_path.is_empty():
-		return false
+		return DiffResult.ERROR
 
 	var base_rev := explicit_base_revision
 	if base_rev.is_empty():
@@ -50,7 +52,7 @@ static func diff_file_against_base(repo_relative_path: String, explicit_base_rev
 
 	if base_rev.is_empty():
 		push_warning("[FlexVault] No base revision available to compare '%s' against." % repo_relative_path)
-		return false
+		return DiffResult.ERROR
 
 	var repo_root := FxvSettings.get_repository_root()
 	var working_file := FxvMetaHelper.to_absolute_path(repo_relative_path, repo_root)
@@ -66,10 +68,24 @@ static func diff_file_against_base(repo_relative_path: String, explicit_base_rev
 	var success := FxvRunner.cat_to_file(repo_relative_path, base_rev, base_temp_path)
 	if not success:
 		push_error("[FlexVault] Failed to retrieve base revision '%s' of '%s'." % [base_rev, repo_relative_path])
-		return false
+		return DiffResult.ERROR
+
+	if _files_identical(base_temp_path, working_file):
+		DirAccess.remove_absolute(base_temp_path)
+		return DiffResult.UNCHANGED
 
 	open_diff_tool(base_temp_path, working_file)
-	return true
+	return DiffResult.OPENED
+
+
+## True only when both files exist and hash identically. A missing working file (e.g. the
+## file was deleted in the workspace) or missing base is never reported as "identical" —
+## that is a real difference worth showing in the diff tool, not a no-op.
+static func _files_identical(path_a: String, path_b: String) -> bool:
+	if not (FileAccess.file_exists(path_a) and FileAccess.file_exists(path_b)):
+		return false
+	var hash_a := FileAccess.get_md5(path_a)
+	return not hash_a.is_empty() and hash_a == FileAccess.get_md5(path_b)
 
 
 static func open_diff_tool(left_path: String, right_path: String) -> void:
