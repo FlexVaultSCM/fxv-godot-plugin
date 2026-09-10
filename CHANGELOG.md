@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Added
+- The History tab's revision list now has a details panel below it: selecting a revision
+  loads and lists the files it changed (path, action, size) via the CLI's `changeinfo`
+  command, with results cached per revision. `FxvRunner.get_change_info()` and
+  `FxvDto.ChangeInfoPayload` already existed and were fully tested, but no UI called them.
 - **Project > Tools** now includes FlexVault actions that act on whatever is currently
   selected in the FileSystem dock: Revert Selection, Diff Selection Against Base,
   Resolve Selection (Mine), and Resolve Selection (Theirs). `FxvContextMenu` previously

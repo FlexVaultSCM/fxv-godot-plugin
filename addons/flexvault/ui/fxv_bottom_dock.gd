@@ -30,6 +30,9 @@ var _discord_btn: Button
 var _history_tree: Tree
 var _history_refresh_btn: Button
 var _goto_btn: Button
+var _history_details_tree: Tree
+var _history_details_label: Label
+var _change_info_cache: Dictionary = {}
 
 var _confirm_dialog: ConfirmationDialog
 
@@ -180,6 +183,10 @@ func _build_ui() -> void:
 	_goto_btn.text = "Switch to Revision (Goto)"
 	hist_actions.add_child(_goto_btn)
 
+	var history_split := VSplitContainer.new()
+	history_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_history_view.add_child(history_split)
+
 	_history_tree = Tree.new()
 	_history_tree.columns = 4
 	_history_tree.set_column_title(0, "Revision")
@@ -188,7 +195,24 @@ func _build_ui() -> void:
 	_history_tree.set_column_title(3, "Description")
 	_history_tree.column_titles_visible = true
 	_history_tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_history_view.add_child(_history_tree)
+	history_split.add_child(_history_tree)
+
+	var details_container := VBoxContainer.new()
+	details_container.custom_minimum_size = Vector2(0, 100)
+	history_split.add_child(details_container)
+
+	_history_details_label = Label.new()
+	_history_details_label.text = "Select a revision to see changed files."
+	details_container.add_child(_history_details_label)
+
+	_history_details_tree = Tree.new()
+	_history_details_tree.columns = 3
+	_history_details_tree.set_column_title(0, "File")
+	_history_details_tree.set_column_title(1, "Action")
+	_history_details_tree.set_column_title(2, "Size")
+	_history_details_tree.column_titles_visible = true
+	_history_details_tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	details_container.add_child(_history_details_tree)
 
 func _connect_signals() -> void:
 	_refresh_btn.pressed.connect(func(): request_refresh.emit())
@@ -202,6 +226,7 @@ func _connect_signals() -> void:
 	_tabs.tab_changed.connect(_on_tab_changed)
 	_history_refresh_btn.pressed.connect(_load_history)
 	_goto_btn.pressed.connect(_on_goto_pressed)
+	_history_tree.item_selected.connect(_on_history_row_selected)
 	_docs_btn.pressed.connect(func(): OS.shell_open("https://docs.fxv.dev"))
 	_discord_btn.pressed.connect(func(): OS.shell_open("https://discord.gg/KCMHRQBDf"))
 
@@ -239,16 +264,7 @@ func _update_changes_tree() -> void:
 		item.set_text(0, f.path)
 		item.set_text(1, f.effective_state.capitalize())
 
-		# Format size
-		var size_str := ""
-		if f.size > 0:
-			if f.size < 1024:
-				size_str = "%d B" % f.size
-			elif f.size < 1048576:
-				size_str = "%.1f KB" % (f.size / 1024.0)
-			else:
-				size_str = "%.1f MB" % (f.size / 1048576.0)
-		item.set_text(2, size_str)
+		item.set_text(2, _format_size(f.size))
 
 		# Status color
 		var col := Color.WHITE
@@ -404,6 +420,9 @@ func _on_resolve_pressed(mode: String) -> void:
 func _load_history() -> void:
 	_history_tree.clear()
 	_history_tree.create_item()
+	_history_details_tree.clear()
+	_history_details_label.text = "Select a revision to see changed files."
+	_change_info_cache.clear()
 
 	_status_label.text = "Loading history..."
 	_set_busy(true)
@@ -460,6 +479,55 @@ static func _format_timestamp(timestamp_millis: int) -> String:
 	var unix_sec := int(timestamp_millis / 1000)
 	var dt := Time.get_datetime_dict_from_unix_time(unix_sec)
 	return "%04d-%02d-%02d %02d:%02d" % [dt.year, dt.month, dt.day, dt.hour, dt.minute]
+
+
+func _on_history_row_selected() -> void:
+	var selected := _history_tree.get_selected()
+	if selected == null:
+		return
+
+	var meta_rev = selected.get_metadata(0)
+	var rev: String = str(meta_rev) if meta_rev != null else selected.get_text(0).trim_prefix("● ").strip_edges()
+	if rev.is_empty():
+		return
+
+	if _change_info_cache.has(rev):
+		_render_change_info(rev, _change_info_cache[rev])
+		return
+
+	_history_details_tree.clear()
+	_history_details_tree.create_item()
+	_history_details_label.text = "Loading changed files for %s..." % rev
+	FxvRunner.get_change_info_async(rev, func(res: FxvRunner.FxvResult) -> void:
+		if res.success and res.data is FxvDto.ChangeInfoPayload:
+			_change_info_cache[rev] = res.data
+			_render_change_info(rev, res.data)
+		else:
+			_history_details_label.text = "Failed to load changed files for %s." % rev
+	)
+
+
+func _render_change_info(rev: String, payload: FxvDto.ChangeInfoPayload) -> void:
+	_history_details_tree.clear()
+	var root := _history_details_tree.create_item()
+
+	for change in payload.changes:
+		var item := _history_details_tree.create_item(root)
+		item.set_text(0, change.path)
+		item.set_text(1, change.action.capitalize())
+		item.set_text(2, _format_size(change.size))
+
+	_history_details_label.text = "%s — %d file(s) changed" % [rev, payload.changes.size()]
+
+
+static func _format_size(size: int) -> String:
+	if size <= 0:
+		return ""
+	if size < 1024:
+		return "%d B" % size
+	if size < 1048576:
+		return "%.1f KB" % (size / 1024.0)
+	return "%.1f MB" % (size / 1048576.0)
 
 
 func _on_goto_pressed() -> void:
