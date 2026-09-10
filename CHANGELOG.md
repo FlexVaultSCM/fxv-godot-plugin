@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+- The status header now shows an unpublished change count (e.g. "3 unpublished changes")
+  whenever the workspace has snapshotted files that haven't been published yet, and their
+  rows in the Changes tab are marked "(unpublished)". A snapshotted file previously showed
+  the same status text as any other pending change, so there was no way to tell from the
+  dock that Snapshot had already run and only Publish remained.
+
 ### Changed
 - The Changes tab's tree/description split now starts at 50% width instead of the
   description panel being squeezed down to its 240px minimum by default. Re-centers on

@@ -274,9 +274,12 @@ func _on_state_changed() -> void:
 		var behind := ""
 		if status.sync_status != null and not status.sync_status.up_to_date:
 			behind = " (%d revs behind)" % status.sync_status.revisions_behind
+		var unpublished := ""
+		if status.unpublished_changes > 0:
+			unpublished = " | %d unpublished change%s" % [status.unpublished_changes, "" if status.unpublished_changes == 1 else "s"]
 		var rev_str := status.head_revision_display
 		var is_logged_in := not status.current_user.is_empty()
-		_user_branch_label.text = "Branch: %s (%s)%s | User: %s" % [status.current_branch, rev_str, behind, status.current_user if is_logged_in else "logged out"]
+		_user_branch_label.text = "Branch: %s (%s)%s | User: %s%s" % [status.current_branch, rev_str, behind, status.current_user if is_logged_in else "logged out", unpublished]
 		_login_edit.visible = not is_logged_in
 		_login_btn.visible = not is_logged_in
 
@@ -297,7 +300,10 @@ func _update_changes_tree() -> void:
 	for f in changed_files:
 		var item := _changes_tree.create_item(root)
 		item.set_text(0, f.path)
-		item.set_text(1, f.effective_state.capitalize())
+		var status_text := f.effective_state.capitalize()
+		if not f.needs_snapshot and f.is_unpublished:
+			status_text += " (unpublished)"
+		item.set_text(1, status_text)
 
 		item.set_text(2, _format_size(f.size))
 
