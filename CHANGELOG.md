@@ -21,6 +21,11 @@
   programmatically.
 
 ### Fixed
+- The Changes tab, History tab, and the History tab's changed-files detail panel no longer
+  show a stray collapse/expand arrow above their first row. Each tree's hidden root item was
+  never marked hidden (`hide_root` was left at its default `false`), so Godot rendered it as
+  its own foldable row on top of the real, flat list of files/revisions. `hide_root` is now
+  set on all three trees.
 - The status header showed the workspace head as `main.1.0` while the History tab listed
   the same commit as `main.1`, so the History tab never highlighted it as the current
   revision. `CommitRef.revision_display` appended a `.0` draft suffix whenever a commit's

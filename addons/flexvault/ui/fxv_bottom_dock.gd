@@ -136,6 +136,7 @@ func _build_ui() -> void:
 	_changes_tree.set_column_title(1, "Status")
 	_changes_tree.set_column_title(2, "Size")
 	_changes_tree.column_titles_visible = true
+	_changes_tree.hide_root = true
 	_changes_tree.select_mode = Tree.SELECT_MULTI
 	_changes_tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tree_container.add_child(_changes_tree)
@@ -220,6 +221,7 @@ func _build_ui() -> void:
 	_history_tree.set_column_title(2, "Date/Time")
 	_history_tree.set_column_title(3, "Description")
 	_history_tree.column_titles_visible = true
+	_history_tree.hide_root = true
 	_history_tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	history_split.add_child(_history_tree)
 
@@ -237,6 +239,7 @@ func _build_ui() -> void:
 	_history_details_tree.set_column_title(1, "Action")
 	_history_details_tree.set_column_title(2, "Size")
 	_history_details_tree.column_titles_visible = true
+	_history_details_tree.hide_root = true
 	_history_details_tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	details_container.add_child(_history_details_tree)
 
