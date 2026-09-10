@@ -143,7 +143,7 @@ func _build_ui() -> void:
 	tree_container.add_child(tree_actions)
 
 	_diff_btn = Button.new()
-	_diff_btn.text = "Diff Base"
+	_diff_btn.text = "Diff Against Previous"
 	_diff_btn.disabled = true
 	_diff_btn.tooltip_text = "Select a file above to diff it against its base revision."
 	tree_actions.add_child(_diff_btn)
@@ -357,7 +357,7 @@ func _on_changes_split_resized() -> void:
 		return
 	_changes_split.split_offset = int(_changes_split.size.x / 2.0)
 
-## Diff Base only makes sense for a single file; Revert Selected works on any non-empty
+## Diff Against Previous only makes sense for a single file; Revert Selected works on any non-empty
 ## selection. Both stay disabled with nothing selected instead of no-op'ing on click.
 func _update_selection_dependent_buttons() -> void:
 	var has_selection := _changes_tree.get_next_selected(null) != null

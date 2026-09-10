@@ -20,6 +20,12 @@
   `logout_async()` are unchanged for anything that still wants to call them
   programmatically.
 
+### Changed
+- The Changes tab's **Diff Base** button is renamed to **Diff Against Previous**, matching
+  the naming of the two new History tab diff buttons below. Behavior is unchanged: it still
+  diffs a selected pending file against its local snapshot or published head, whichever is
+  the more recent base.
+
 ### Added
 - The History tab's changed-files detail panel now has **Diff Against Current** and **Diff
   Against Previous** buttons, enabled when a file is selected there. Against Current opens
