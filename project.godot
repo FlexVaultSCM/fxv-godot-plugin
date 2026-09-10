@@ -1,0 +1,16 @@
+﻿; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; but since the parameters are made of standard INI format,
+; the following can be edited quickly.
+
+config_version=5
+
+[application]
+
+config/name="FlexVault Godot Plugin"
+config/description="FlexVault version control integration plugin for Godot Engine 4.x"
+config/features=PackedStringArray("4.0", "4.1", "4.2", "4.3")
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/flexvault/plugin.cfg")
