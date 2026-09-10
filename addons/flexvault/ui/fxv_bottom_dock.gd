@@ -23,6 +23,9 @@ var _resolve_theirs_btn: Button
 var _refresh_btn: Button
 var _status_label: Label
 var _user_branch_label: Label
+var _login_edit: LineEdit
+var _login_btn: Button
+var _logout_btn: Button
 var _docs_btn: Button
 var _discord_btn: Button
 
@@ -71,6 +74,20 @@ func _build_ui() -> void:
 	_user_branch_label = Label.new()
 	_user_branch_label.text = "Branch: - | User: -"
 	toolbar.add_child(_user_branch_label)
+
+	_login_edit = LineEdit.new()
+	_login_edit.placeholder_text = "Username"
+	_login_edit.custom_minimum_size = Vector2(110, 0)
+	toolbar.add_child(_login_edit)
+
+	_login_btn = Button.new()
+	_login_btn.text = "Log In"
+	toolbar.add_child(_login_btn)
+
+	_logout_btn = Button.new()
+	_logout_btn.text = "Log Out"
+	_logout_btn.visible = false
+	toolbar.add_child(_logout_btn)
 
 	_status_label = Label.new()
 	_status_label.text = "Ready"
@@ -229,6 +246,9 @@ func _connect_signals() -> void:
 	_history_tree.item_selected.connect(_on_history_row_selected)
 	_docs_btn.pressed.connect(func(): OS.shell_open("https://docs.fxv.dev"))
 	_discord_btn.pressed.connect(func(): OS.shell_open("https://discord.gg/KCMHRQBDf"))
+	_login_btn.pressed.connect(_on_login_pressed)
+	_logout_btn.pressed.connect(_on_logout_pressed)
+	_login_edit.text_submitted.connect(func(_text: String): _on_login_pressed())
 
 	var cache := FxvStateCache.get_instance()
 	cache.state_changed.connect(_on_state_changed)
@@ -246,7 +266,11 @@ func _on_state_changed() -> void:
 		if status.sync_status != null and not status.sync_status.up_to_date:
 			behind = " (%d revs behind)" % status.sync_status.revisions_behind
 		var rev_str := status.head_revision_display
-		_user_branch_label.text = "Branch: %s (%s)%s | User: %s" % [status.current_branch, rev_str, behind, status.current_user]
+		var is_logged_in := not status.current_user.is_empty()
+		_user_branch_label.text = "Branch: %s (%s)%s | User: %s" % [status.current_branch, rev_str, behind, status.current_user if is_logged_in else "logged out"]
+		_login_edit.visible = not is_logged_in
+		_login_btn.visible = not is_logged_in
+		_logout_btn.visible = is_logged_in
 
 	_update_changes_tree()
 	if _tabs.current_tab == 1:
@@ -288,6 +312,8 @@ func _set_busy(busy: bool) -> void:
 	_resolve_theirs_btn.disabled = busy
 	_goto_btn.disabled = busy
 	_history_refresh_btn.disabled = busy
+	_login_btn.disabled = busy
+	_logout_btn.disabled = busy
 
 
 func _get_selected_paths() -> Array:
@@ -349,6 +375,37 @@ func _on_sync_pressed() -> void:
 		else:
 			_status_label.text = "Sync failed."
 			push_error("[FlexVault] Sync failed: " + res.error_message)
+	)
+
+func _on_login_pressed() -> void:
+	var username := _login_edit.text.strip_edges()
+	if username.is_empty():
+		_status_label.text = "Enter a username to log in."
+		return
+	_status_label.text = "Logging in as '%s'..." % username
+	_set_busy(true)
+	FxvRunner.login_async(username, func(res: FxvRunner.FxvResult) -> void:
+		_set_busy(false)
+		if res.success:
+			_login_edit.text = ""
+			_status_label.text = "Logged in as '%s'." % username
+			request_refresh.emit()
+		else:
+			_status_label.text = "Login failed."
+			push_error("[FlexVault] Login failed: " + res.error_message)
+	)
+
+func _on_logout_pressed() -> void:
+	_status_label.text = "Logging out..."
+	_set_busy(true)
+	FxvRunner.logout_async(func(res: FxvRunner.FxvResult) -> void:
+		_set_busy(false)
+		if res.success:
+			_status_label.text = "Logged out."
+			request_refresh.emit()
+		else:
+			_status_label.text = "Logout failed."
+			push_error("[FlexVault] Logout failed: " + res.error_message)
 	)
 
 func _on_revert_pressed() -> void:

@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### Added
+- The bottom dock toolbar now has a username field with Log In / Log Out buttons wired
+  to `FxvRunner.login()` / `logout()`, which previously had no UI entry point at all —
+  authenticating required a separate terminal running `fxv login <username>`.
 - The History tab's revision list now has a details panel below it: selecting a revision
   loads and lists the files it changed (path, action, size) via the CLI's `changeinfo`
   command, with results cached per revision. `FxvRunner.get_change_info()` and
