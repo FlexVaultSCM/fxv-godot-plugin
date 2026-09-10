@@ -600,23 +600,12 @@ func _get_selected_history_revision() -> String:
 
 
 func _on_history_row_selected() -> void:
-	var entry := _get_selected_history_entry()
 	var rev := _get_selected_history_revision()
 	if rev.is_empty():
 		return
 
 	if _change_info_cache.has(rev):
 		_render_change_info(rev, _change_info_cache[rev])
-		return
-
-	# A commit whose published revision is unassigned (revision -1, e.g. a local draft
-	# that hasn't been published yet) has no prior published revision to diff against, so
-	# the CLI's changeinfo has nothing to compute. Skip the round trip and say so plainly
-	# rather than surface a generic CLI failure.
-	if entry != null and entry.commit != null and entry.commit.type == "draft" and entry.commit.revision != null and int(entry.commit.revision) == -1:
-		_history_details_tree.clear()
-		_history_details_tree.create_item()
-		_history_details_label.text = "%s is an unpublished local draft with no prior revision to compare against." % rev
 		return
 
 	_history_details_tree.clear()
@@ -676,6 +665,7 @@ func _on_goto_pressed() -> void:
 			request_refresh.emit()
 			EditorInterface.get_resource_filesystem().scan()
 		else:
-			_status_label.text = "Goto failed."
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Goto failed: %s" % reason
 			push_error("[FlexVault] Goto revision failed: " + res.error_message)
 	)

@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Fixed
+- The History tab no longer refuses to load changed files for an unparented local draft
+  (a draft with no published parent, revision spec `main.-.N`). The check for this case
+  assumed the CLI reports it as revision `-1`, which never happens — the wire format omits
+  the `revision` key entirely for it — so the check was unreachable dead code, and the
+  premise behind it was wrong: `fxv changeinfo` already handles `main.-.N` correctly,
+  returning every file as "added" against the empty base. Verified directly against the
+  real CLI. Removed the special case; the normal changeinfo round trip now runs for this
+  case like any other.
 - Selecting a draft revision in the History tab (e.g. `main.0.2`, a draft with a published
   parent) no longer fails changeinfo lookups with errors like "Invalid branch revision
   number: 0.2.0". `JSON.parse_string()` decodes every JSON number as a Godot `float`, and
