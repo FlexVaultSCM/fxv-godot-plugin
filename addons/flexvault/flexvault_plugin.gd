@@ -73,8 +73,11 @@ func _on_menu_sync() -> void:
 		return
 	FxvRunner.sync_workspace_async(func(res: FxvRunner.FxvResult) -> void:
 		if res.success:
-			_state_cache.refresh()
-			EditorInterface.get_resource_filesystem().scan()
+			var conflicted: Array = res.data.conflicted_files if res.data is FxvDto.WorkspaceSyncPayload else []
+			FxvRunner.apply_default_resolve_preference(conflicted, func(_applied: bool) -> void:
+				_state_cache.refresh()
+				EditorInterface.get_resource_filesystem().scan()
+			)
 		else:
 			push_error("[FlexVault] Sync failed: " + res.error_message)
 	)

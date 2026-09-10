@@ -372,6 +372,28 @@ static func get_change_info_async(revision: String, callback: Callable) -> void:
 	)
 
 
+## If Version Control > FlexVault > Default Resolve Preference is set to Mine or Theirs,
+## automatically resolves the given conflicted paths that way and reports whether it did
+## via `on_complete(applied: bool)`. Leaves the paths untouched (and calls back with
+## `false`) when the preference is "Ask Each Time" or there is nothing to resolve.
+static func apply_default_resolve_preference(conflicted_files: Array, on_complete: Callable) -> void:
+	if conflicted_files.is_empty():
+		on_complete.call(false)
+		return
+
+	var preference := FxvSettings.get_default_resolve_preference()
+	if preference == FxvSettings.RESOLVE_PREFERENCE_ASK:
+		on_complete.call(false)
+		return
+
+	var mode := "mine" if preference == FxvSettings.RESOLVE_PREFERENCE_MINE else "theirs"
+	resolve_async(mode, conflicted_files, func(res: FxvResult) -> void:
+		if not res.success:
+			push_error("[FlexVault] Automatic conflict resolution (%s) failed: %s" % [mode, res.error_message])
+		on_complete.call(res.success)
+	)
+
+
 static func login(username: String) -> FxvResult:
 	return run_command(["login", username])
 

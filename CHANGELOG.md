@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Added
+- New Editor Settings option, **Version Control > FlexVault > Default Resolve
+  Preference** (Ask Each Time / Keep Mine / Take Theirs; default Ask Each Time). When set
+  to Mine or Theirs, a Sync that produces conflicts resolves them automatically instead
+  of always requiring a manual per-file choice.
 - **Project > Tools > FlexVault: Ignore Selection (.fxvignore)** appends the current
   FileSystem dock selection, plus their companion `.import`/`.uid` files, to
   `.fxvignore`, mirroring into `.gitignore` if one is present. Adding an ignore rule
