@@ -1,4 +1,34 @@
-﻿# CHANGELOG
+# CHANGELOG
+
+## [Unreleased]
+
+### Added
+- Loading spinner in the toolbar while a CLI operation is in flight.
+- Unpublished change count in the status header and "(unpublished)" tags in the Changes tab.
+- History tab: **Diff Against Current** and **Diff Against Previous** buttons on the changed-files detail panel.
+- **Sync Workspace** button shows the revs-behind count and highlights when the workspace is behind remote.
+- Status refreshes immediately on Godot filesystem changes, not just the 10s poll.
+- Editor Settings: **Default Resolve Preference** (auto-resolve sync conflicts as Mine/Theirs).
+- Editor Settings: **Timeout Seconds** for CLI calls.
+- **Project > Tools > FlexVault: Ignore Selection (.fxvignore)**.
+- **Project > Tools** actions for the FileSystem dock selection: Revert, Diff Against Base, Resolve (Mine/Theirs).
+- Toolbar Log In field wired to `fxv login`.
+- History tab changed-files detail panel (via `fxv changeinfo`).
+
+### Changed
+- **Publish** now snapshots the workspace before publishing (matches the Unreal/Unity plugins), instead of silently no-op'ing on unsnapshotted changes.
+- Changes tab and History tab split panels now default to a 50/50 split.
+- Removed the toolbar's **Log Out** and **Refresh** buttons (redundant with auto-refresh; use `fxv logout` directly).
+- Changes tab's **Diff Base** renamed to **Diff Against Previous**.
+- **Goto**, **Diff Against Previous**, and **Revert Selected** are disabled until something is selected.
+- CLI calls now run on a background thread, so the editor no longer freezes during Snapshot/Publish/Sync/Goto/Revert/Resolve.
+
+### Fixed
+- Stray collapse/expand arrow above the Changes/History trees (`hide_root` wasn't set).
+- History tab revision display didn't match the status header for a synced workspace (spurious `.0` draft suffix).
+- **Diff Against Previous** no longer opens an empty diff for files with no real content changes.
+- Snapshot/Publish/Sync/Login/Logout/Revert/Resolve/Goto now surface the real CLI error message instead of a generic failure.
+- History tab: fixed changeinfo failing for unparented drafts and for drafts with a published parent (int/float revision bug), fixed selection loss/flicker on background refresh, and fixed a generic error masking the real changeinfo failure reason.
 
 ## [0.2.0] - 2026-09-10
 

@@ -4,6 +4,8 @@ extends RefCounted
 
 ## Utility for diffing repository files against their published or local base revisions.
 
+enum DiffResult { OPENED, UNCHANGED, ERROR }
+
 static func get_base_revision_for_file(repo_relative_path: String) -> String:
 	var cache := FxvStateCache.get_instance()
 	var status := cache.get_latest_status()
@@ -40,9 +42,9 @@ static func get_base_revision_for_file(repo_relative_path: String) -> String:
 	return ""
 
 
-static func diff_file_against_base(repo_relative_path: String, explicit_base_revision: String = "") -> bool:
+static func diff_file_against_base(repo_relative_path: String, explicit_base_revision: String = "") -> DiffResult:
 	if repo_relative_path.is_empty():
-		return false
+		return DiffResult.ERROR
 
 	var base_rev := explicit_base_revision
 	if base_rev.is_empty():
@@ -50,7 +52,7 @@ static func diff_file_against_base(repo_relative_path: String, explicit_base_rev
 
 	if base_rev.is_empty():
 		push_warning("[FlexVault] No base revision available to compare '%s' against." % repo_relative_path)
-		return false
+		return DiffResult.ERROR
 
 	var repo_root := FxvSettings.get_repository_root()
 	var working_file := FxvMetaHelper.to_absolute_path(repo_relative_path, repo_root)
@@ -66,10 +68,52 @@ static func diff_file_against_base(repo_relative_path: String, explicit_base_rev
 	var success := FxvRunner.cat_to_file(repo_relative_path, base_rev, base_temp_path)
 	if not success:
 		push_error("[FlexVault] Failed to retrieve base revision '%s' of '%s'." % [base_rev, repo_relative_path])
-		return false
+		return DiffResult.ERROR
+
+	if _files_identical(base_temp_path, working_file):
+		DirAccess.remove_absolute(base_temp_path)
+		return DiffResult.UNCHANGED
 
 	open_diff_tool(base_temp_path, working_file)
-	return true
+	return DiffResult.OPENED
+
+
+static func diff_file_between_revisions(repo_relative_path: String, revision_a: String, revision_b: String) -> DiffResult:
+	if repo_relative_path.is_empty() or revision_a.is_empty() or revision_b.is_empty():
+		return DiffResult.ERROR
+
+	var temp_dir := OS.get_user_data_dir().path_join("flexvault_diff")
+	DirAccess.make_dir_recursive_absolute(temp_dir)
+
+	var safe_a := revision_a.replace(".", "_").replace("/", "_").replace("\\", "_")
+	var safe_b := revision_b.replace(".", "_").replace("/", "_").replace("\\", "_")
+	var temp_path_a := temp_dir.path_join("%s_%s" % [safe_a, repo_relative_path.get_file()])
+	var temp_path_b := temp_dir.path_join("%s_%s" % [safe_b, repo_relative_path.get_file()])
+
+	if not FxvRunner.cat_to_file(repo_relative_path, revision_a, temp_path_a):
+		push_error("[FlexVault] Failed to retrieve revision '%s' of '%s'." % [revision_a, repo_relative_path])
+		return DiffResult.ERROR
+	if not FxvRunner.cat_to_file(repo_relative_path, revision_b, temp_path_b):
+		push_error("[FlexVault] Failed to retrieve revision '%s' of '%s'." % [revision_b, repo_relative_path])
+		return DiffResult.ERROR
+
+	if _files_identical(temp_path_a, temp_path_b):
+		DirAccess.remove_absolute(temp_path_a)
+		DirAccess.remove_absolute(temp_path_b)
+		return DiffResult.UNCHANGED
+
+	open_diff_tool(temp_path_a, temp_path_b)
+	return DiffResult.OPENED
+
+
+## True only when both files exist and hash identically. A missing working file (e.g. the
+## file was deleted in the workspace) or missing base is never reported as "identical" —
+## that is a real difference worth showing in the diff tool, not a no-op.
+static func _files_identical(path_a: String, path_b: String) -> bool:
+	if not (FileAccess.file_exists(path_a) and FileAccess.file_exists(path_b)):
+		return false
+	var hash_a := FileAccess.get_md5(path_a)
+	return not hash_a.is_empty() and hash_a == FileAccess.get_md5(path_b)
 
 
 static func open_diff_tool(left_path: String, right_path: String) -> void:

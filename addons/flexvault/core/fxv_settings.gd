@@ -8,6 +8,11 @@ const SETTING_BINARY_PATH: String = "version_control/flexvault/binary_path"
 const SETTING_DIFF_TOOL: String = "version_control/flexvault/diff_tool"
 const SETTING_AUTO_REFRESH: String = "version_control/flexvault/auto_refresh"
 const SETTING_TIMEOUT_SECONDS: String = "version_control/flexvault/timeout_seconds"
+const SETTING_DEFAULT_RESOLVE_PREFERENCE: String = "version_control/flexvault/default_resolve_preference"
+
+const RESOLVE_PREFERENCE_ASK: int = 0
+const RESOLVE_PREFERENCE_MINE: int = 1
+const RESOLVE_PREFERENCE_THEIRS: int = 2
 
 static var _cached_repo_root: String = ""
 static var _searched_repo_root: bool = false
@@ -44,6 +49,24 @@ static func register_settings() -> void:
 		"type": TYPE_BOOL
 	})
 
+	if not editor_settings.has_setting(SETTING_TIMEOUT_SECONDS):
+		editor_settings.set_setting(SETTING_TIMEOUT_SECONDS, 0.0)
+	editor_settings.add_property_info({
+		"name": SETTING_TIMEOUT_SECONDS,
+		"type": TYPE_FLOAT,
+		"hint": PROPERTY_HINT_RANGE,
+		"hint_string": "0,600,1,suffix:s"
+	})
+
+	if not editor_settings.has_setting(SETTING_DEFAULT_RESOLVE_PREFERENCE):
+		editor_settings.set_setting(SETTING_DEFAULT_RESOLVE_PREFERENCE, RESOLVE_PREFERENCE_ASK)
+	editor_settings.add_property_info({
+		"name": SETTING_DEFAULT_RESOLVE_PREFERENCE,
+		"type": TYPE_INT,
+		"hint": PROPERTY_HINT_ENUM,
+		"hint_string": "Ask Each Time:0,Keep Mine:1,Take Theirs:2"
+	})
+
 
 static func get_diff_tool() -> String:
 	if not Engine.is_editor_hint():
@@ -61,6 +84,29 @@ static func is_auto_refresh_enabled() -> bool:
 	if editor_settings != null and editor_settings.has_setting(SETTING_AUTO_REFRESH):
 		return bool(editor_settings.get_setting(SETTING_AUTO_REFRESH))
 	return true
+
+
+## Seconds to wait for an async CLI call before it is reported as timed out. 0 disables
+## the watchdog (the default): the editor waits indefinitely, matching prior behavior.
+static func get_command_timeout_seconds() -> float:
+	if not Engine.is_editor_hint():
+		return 0.0
+	var editor_settings := EditorInterface.get_editor_settings()
+	if editor_settings != null and editor_settings.has_setting(SETTING_TIMEOUT_SECONDS):
+		return float(editor_settings.get_setting(SETTING_TIMEOUT_SECONDS))
+	return 0.0
+
+
+## One of RESOLVE_PREFERENCE_ASK / _MINE / _THEIRS. When not ASK, a sync that produces
+## conflicts is automatically resolved with this preference instead of leaving the files
+## conflicted for a manual choice.
+static func get_default_resolve_preference() -> int:
+	if not Engine.is_editor_hint():
+		return RESOLVE_PREFERENCE_ASK
+	var editor_settings := EditorInterface.get_editor_settings()
+	if editor_settings != null and editor_settings.has_setting(SETTING_DEFAULT_RESOLVE_PREFERENCE):
+		return int(editor_settings.get_setting(SETTING_DEFAULT_RESOLVE_PREFERENCE))
+	return RESOLVE_PREFERENCE_ASK
 
 
 static func get_custom_binary_path() -> String:

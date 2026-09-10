@@ -13,8 +13,8 @@ Godot Engine 4.x Editor Version Control plugin for [FlexVault](https://fxv.dev).
 
 ## Installation
 
-### Option 1: Release Archive / Asset Library
-1. Download the release `.zip` from GitHub Releases (or find it in the Godot AssetLib).
+### Option 1: Release Archive
+1. Download the latest release `.zip` (`fxv-godot-plugin.zip`) from [GitHub Releases](https://github.com/FlexVaultSCM/fxv-godot-plugin/releases).
 2. Extract the `addons/flexvault/` folder into your Godot project's root `addons/` directory:
    ```text
    res://
@@ -26,14 +26,6 @@ Godot Engine 4.x Editor Version Control plugin for [FlexVault](https://fxv.dev).
            └── ui/
    ```
 3. In the Godot Editor, open **Project -> Project Settings -> Plugins** and check **Enable** for FlexVault.
-
-### Option 2: Git Submodule (Development / Pinned)
-Add the repository as a submodule or link the `addons/flexvault` folder into your project:
-```bash
-git submodule add https://github.com/FlexVaultSCM/fxv-godot-plugin.git
-```
-Or copy/symlink `fxv-godot-plugin/addons/flexvault` into your Godot project's `res://addons/` directory.
-
 
 ---
 

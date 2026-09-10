@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  pull_request:
+    paths-ignore:
+      - '**.md'
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-plugin:
+    name: Validate Plugin & Versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate version consistency
+        run: node .github/scripts/validate-versions.js
+
+      - name: Validate plugin.cfg descriptor
+        run: |
+          node -e "
+            const fs = require('fs');
+            const cfgPath = 'addons/flexvault/plugin.cfg';
+            if (!fs.existsSync(cfgPath)) {
+              console.error('Missing plugin descriptor at ' + cfgPath);
+              process.exit(1);
+            }
+            const content = fs.readFileSync(cfgPath, 'utf8');
+            const requiredFields = ['name', 'description', 'author', 'version', 'script'];
+            for (const field of requiredFields) {
+              const regex = new RegExp('^' + field + '\\s*=', 'm');
+              if (!regex.test(content)) {
+                console.error('Missing required plugin.cfg field: ' + field);
+                process.exit(1);
+              }
+            }
+            console.log('Valid plugin.cfg descriptor.');
+          "
+
+      - name: Verify plugin file structure
+        run: |
+          node -e "
+            const fs = require('fs');
+            const requiredFiles = [
+              'addons/flexvault/plugin.cfg',
+              'addons/flexvault/flexvault_plugin.gd',
+              'addons/flexvault/core/fxv_runner.gd',
+              'addons/flexvault/core/fxv_settings.gd',
+              'addons/flexvault/core/fxv_state_cache.gd',
+              'addons/flexvault/core/fxv_version_guard.gd',
+              'addons/flexvault/core/fxv_dto.gd',
+              'addons/flexvault/core/fxv_meta_helper.gd',
+              'addons/flexvault/core/fxv_safety_guards.gd',
+              'addons/flexvault/core/fxv_diff_helper.gd',
+              'addons/flexvault/ui/fxv_bottom_dock.gd',
+              'addons/flexvault/ui/fxv_context_menu.gd'
+            ];
+            for (const req of requiredFiles) {
+              if (!fs.existsSync(req)) {
+                console.error('Missing required plugin file: ' + req);
+                process.exit(1);
+              }
+            }
+            console.log('All required plugin files present.');
+          "
+
+      - name: Validate archive packaging (dry-run)
+        run: |
+          version=$(node -e "const content = require('fs').readFileSync('addons/flexvault/plugin.cfg', 'utf8'); console.log(content.match(/version\\s*=\\s*\"([^\"]+)\"/)[1]);")
+          archive_name="fxv-godot-plugin-${version}.zip"
+          git archive --format=zip --prefix="addons/flexvault/" HEAD:addons/flexvault -o "$archive_name"
+          test -s "$archive_name"
+          sha256sum "$archive_name"
+          echo "Packaging dry-run successful: $archive_name"

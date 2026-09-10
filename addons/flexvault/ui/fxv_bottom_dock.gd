@@ -20,9 +20,13 @@ var _diff_btn: Button
 var _sync_btn: Button
 var _resolve_mine_btn: Button
 var _resolve_theirs_btn: Button
-var _refresh_btn: Button
 var _status_label: Label
+var _spinner: TextureRect
+var _spinner_timer: Timer
+var _spinner_frame: int = 1
 var _user_branch_label: Label
+var _login_edit: LineEdit
+var _login_btn: Button
 var _docs_btn: Button
 var _discord_btn: Button
 
@@ -30,8 +34,15 @@ var _discord_btn: Button
 var _history_tree: Tree
 var _history_refresh_btn: Button
 var _goto_btn: Button
+var _history_details_tree: Tree
+var _history_details_label: Label
+var _history_diff_current_btn: Button
+var _history_diff_previous_btn: Button
+var _change_info_cache: Dictionary = {}
+var _history_loaded_fingerprint: String = ""
 
 var _confirm_dialog: ConfirmationDialog
+var _busy: bool = false
 
 func _init() -> void:
 	name = "FlexVault"
@@ -55,10 +66,6 @@ func _build_ui() -> void:
 	add_child(toolbar)
 
 
-	_refresh_btn = Button.new()
-	_refresh_btn.text = "Refresh"
-	toolbar.add_child(_refresh_btn)
-
 	_sync_btn = Button.new()
 	_sync_btn.text = "Sync Workspace"
 	toolbar.add_child(_sync_btn)
@@ -68,6 +75,26 @@ func _build_ui() -> void:
 	_user_branch_label = Label.new()
 	_user_branch_label.text = "Branch: - | User: -"
 	toolbar.add_child(_user_branch_label)
+
+	_login_edit = LineEdit.new()
+	_login_edit.placeholder_text = "Username"
+	_login_edit.custom_minimum_size = Vector2(110, 0)
+	toolbar.add_child(_login_edit)
+
+	_login_btn = Button.new()
+	_login_btn.text = "Log In"
+	toolbar.add_child(_login_btn)
+
+	_spinner = TextureRect.new()
+	_spinner.custom_minimum_size = Vector2(16, 16)
+	_spinner.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	_spinner.visible = false
+	toolbar.add_child(_spinner)
+
+	_spinner_timer = Timer.new()
+	_spinner_timer.wait_time = 0.08
+	_spinner_timer.timeout.connect(_on_spinner_timer_timeout)
+	add_child(_spinner_timer)
 
 	_status_label = Label.new()
 	_status_label.text = "Ready"
@@ -111,6 +138,7 @@ func _build_ui() -> void:
 	_changes_tree.set_column_title(1, "Status")
 	_changes_tree.set_column_title(2, "Size")
 	_changes_tree.column_titles_visible = true
+	_changes_tree.hide_root = true
 	_changes_tree.select_mode = Tree.SELECT_MULTI
 	_changes_tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tree_container.add_child(_changes_tree)
@@ -120,11 +148,15 @@ func _build_ui() -> void:
 	tree_container.add_child(tree_actions)
 
 	_diff_btn = Button.new()
-	_diff_btn.text = "Diff Base"
+	_diff_btn.text = "Diff Against Previous"
+	_diff_btn.disabled = true
+	_diff_btn.tooltip_text = "Select a file above to diff it against its base revision."
 	tree_actions.add_child(_diff_btn)
 
 	_revert_btn = Button.new()
 	_revert_btn.text = "Revert Selected"
+	_revert_btn.disabled = true
+	_revert_btn.tooltip_text = "Select one or more files above to revert them."
 	tree_actions.add_child(_revert_btn)
 
 	_resolve_mine_btn = Button.new()
@@ -140,6 +172,7 @@ func _build_ui() -> void:
 	# Right side: Commit / Snapshot Panel
 	var commit_panel := VBoxContainer.new()
 	commit_panel.custom_minimum_size = Vector2(240, 0)
+	commit_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	changes_split.add_child(commit_panel)
 
 	var desc_lbl := Label.new()
@@ -177,8 +210,14 @@ func _build_ui() -> void:
 	hist_actions.add_child(_history_refresh_btn)
 
 	_goto_btn = Button.new()
-	_goto_btn.text = "Switch to Revision (Goto)"
+	_goto_btn.text = "Switch to Selected Revision"
+	_goto_btn.disabled = true
+	_goto_btn.tooltip_text = "Select a revision in the history list first."
 	hist_actions.add_child(_goto_btn)
+
+	var history_split := VSplitContainer.new()
+	history_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_history_view.add_child(history_split)
 
 	_history_tree = Tree.new()
 	_history_tree.columns = 4
@@ -187,11 +226,45 @@ func _build_ui() -> void:
 	_history_tree.set_column_title(2, "Date/Time")
 	_history_tree.set_column_title(3, "Description")
 	_history_tree.column_titles_visible = true
+	_history_tree.hide_root = true
 	_history_tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_history_view.add_child(_history_tree)
+	history_split.add_child(_history_tree)
+
+	var details_container := VBoxContainer.new()
+	details_container.custom_minimum_size = Vector2(0, 100)
+	details_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	history_split.add_child(details_container)
+
+	_history_details_label = Label.new()
+	_history_details_label.text = "Select a revision to see changed files."
+	details_container.add_child(_history_details_label)
+
+	_history_details_tree = Tree.new()
+	_history_details_tree.columns = 3
+	_history_details_tree.set_column_title(0, "File")
+	_history_details_tree.set_column_title(1, "Action")
+	_history_details_tree.set_column_title(2, "Size")
+	_history_details_tree.column_titles_visible = true
+	_history_details_tree.hide_root = true
+	_history_details_tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	details_container.add_child(_history_details_tree)
+
+	var details_actions := HBoxContainer.new()
+	details_container.add_child(details_actions)
+
+	_history_diff_current_btn = Button.new()
+	_history_diff_current_btn.text = "Diff Against Current"
+	_history_diff_current_btn.disabled = true
+	_history_diff_current_btn.tooltip_text = "Select a file above to diff its selected revision against the current workspace."
+	details_actions.add_child(_history_diff_current_btn)
+
+	_history_diff_previous_btn = Button.new()
+	_history_diff_previous_btn.text = "Diff Against Previous"
+	_history_diff_previous_btn.disabled = true
+	_history_diff_previous_btn.tooltip_text = "Select a file above to diff its selected revision against the previous revision."
+	details_actions.add_child(_history_diff_previous_btn)
 
 func _connect_signals() -> void:
-	_refresh_btn.pressed.connect(func(): request_refresh.emit())
 	_snapshot_btn.pressed.connect(_on_snapshot_pressed)
 	_publish_btn.pressed.connect(_on_publish_pressed)
 	_sync_btn.pressed.connect(_on_sync_pressed)
@@ -202,15 +275,24 @@ func _connect_signals() -> void:
 	_tabs.tab_changed.connect(_on_tab_changed)
 	_history_refresh_btn.pressed.connect(_load_history)
 	_goto_btn.pressed.connect(_on_goto_pressed)
+	_history_tree.item_selected.connect(_on_history_row_selected)
+	_history_tree.item_selected.connect(_update_selection_dependent_buttons)
+	_history_tree.item_selected.connect(_update_history_details_buttons)
+	_history_details_tree.item_selected.connect(_update_history_details_buttons)
+	_history_diff_current_btn.pressed.connect(_on_history_diff_current_pressed)
+	_history_diff_previous_btn.pressed.connect(_on_history_diff_previous_pressed)
+	_changes_tree.multi_selected.connect(func(_item: TreeItem, _column: int, _selected: bool): _update_selection_dependent_buttons())
 	_docs_btn.pressed.connect(func(): OS.shell_open("https://docs.fxv.dev"))
 	_discord_btn.pressed.connect(func(): OS.shell_open("https://discord.gg/KCMHRQBDf"))
+	_login_btn.pressed.connect(_on_login_pressed)
+	_login_edit.text_submitted.connect(func(_text: String): _on_login_pressed())
 
 	var cache := FxvStateCache.get_instance()
 	cache.state_changed.connect(_on_state_changed)
 
 func _on_tab_changed(tab_idx: int) -> void:
 	if tab_idx == 1: # History tab
-		_load_history()
+		_load_history(false)
 
 func _on_state_changed() -> void:
 	var cache := FxvStateCache.get_instance()
@@ -218,14 +300,31 @@ func _on_state_changed() -> void:
 
 	if status != null:
 		var behind := ""
-		if status.sync_status != null and not status.sync_status.up_to_date:
+		var is_behind := status.sync_status != null and not status.sync_status.up_to_date
+		if is_behind:
 			behind = " (%d revs behind)" % status.sync_status.revisions_behind
+			_sync_btn.text = "Sync Workspace%s" % behind
+			_sync_btn.add_theme_color_override("font_color", Color(1.0, 0.7, 0.2))
+			_sync_btn.tooltip_text = "The published branch has changes not yet in your workspace. Click to sync."
+		else:
+			_sync_btn.text = "Sync Workspace"
+			_sync_btn.remove_theme_color_override("font_color")
+			_sync_btn.tooltip_text = ""
+		var unpublished := ""
+		if status.unpublished_changes > 0:
+			unpublished = " | %d unpublished change%s" % [status.unpublished_changes, "" if status.unpublished_changes == 1 else "s"]
 		var rev_str := status.head_revision_display
-		_user_branch_label.text = "Branch: %s (%s)%s | User: %s" % [status.current_branch, rev_str, behind, status.current_user]
+		var is_logged_in := not status.current_user.is_empty()
+		_user_branch_label.text = "Branch: %s (%s)%s | User: %s%s" % [status.current_branch, rev_str, behind, status.current_user if is_logged_in else "logged out", unpublished]
+		_login_edit.visible = not is_logged_in
+		_login_btn.visible = not is_logged_in
 
 	_update_changes_tree()
 	if _tabs.current_tab == 1:
-		_load_history()
+		# Unforced: skips the reload (and the selection loss that comes with it) unless
+		# the workspace head actually moved, so routine background status polls while the
+		# History tab is open don't flicker or drop the current selection.
+		_load_history(false)
 
 func _update_changes_tree() -> void:
 	_changes_tree.clear()
@@ -237,18 +336,12 @@ func _update_changes_tree() -> void:
 	for f in changed_files:
 		var item := _changes_tree.create_item(root)
 		item.set_text(0, f.path)
-		item.set_text(1, f.effective_state.capitalize())
+		var status_text := f.effective_state.capitalize()
+		if not f.needs_snapshot and f.is_unpublished:
+			status_text += " (unpublished)"
+		item.set_text(1, status_text)
 
-		# Format size
-		var size_str := ""
-		if f.size > 0:
-			if f.size < 1024:
-				size_str = "%d B" % f.size
-			elif f.size < 1048576:
-				size_str = "%.1f KB" % (f.size / 1024.0)
-			else:
-				size_str = "%.1f MB" % (f.size / 1048576.0)
-		item.set_text(2, size_str)
+		item.set_text(2, _format_size(f.size))
 
 		# Status color
 		var col := Color.WHITE
@@ -263,6 +356,65 @@ func _update_changes_tree() -> void:
 	_resolve_mine_btn.visible = has_conflicts
 	_resolve_theirs_btn.visible = has_conflicts
 
+	# Rebuilding the tree above drops any prior selection.
+	_update_selection_dependent_buttons()
+
+## Diff Against Previous only makes sense for a single file; Revert Selected works on any non-empty
+## selection. Both stay disabled with nothing selected instead of no-op'ing on click.
+func _update_selection_dependent_buttons() -> void:
+	var has_selection := _changes_tree.get_next_selected(null) != null
+	_diff_btn.disabled = _busy or not has_selection
+	_revert_btn.disabled = _busy or not has_selection
+	_goto_btn.disabled = _busy or _history_tree.get_next_selected(null) == null
+
+## Both diff buttons need a file selected in the changed-files detail list; Diff Against
+## Previous additionally needs an older revision to exist (nothing to compare the oldest
+## revision in the loaded history against).
+func _update_history_details_buttons() -> void:
+	var has_selection := _history_details_tree.get_next_selected(null) != null
+	_history_diff_current_btn.disabled = _busy or not has_selection
+	_history_diff_previous_btn.disabled = _busy or not has_selection or _get_previous_history_revision().is_empty()
+
+## The revision immediately below the selected one in the history list, i.e. the next-older
+## entry. The list is CLI-ordered newest first, so this is the row directly after it.
+func _get_previous_history_revision() -> String:
+	var selected := _history_tree.get_selected()
+	if selected == null:
+		return ""
+	var next_item := selected.get_next()
+	if next_item == null:
+		return ""
+	var meta = next_item.get_metadata(0)
+	if meta is FxvDto.CommitRef:
+		return meta.revision_display
+	return ""
+
+func _set_busy(busy: bool) -> void:
+	_busy = busy
+	_snapshot_btn.disabled = busy
+	_publish_btn.disabled = busy
+	_sync_btn.disabled = busy
+	_resolve_mine_btn.disabled = busy
+	_resolve_theirs_btn.disabled = busy
+	_history_refresh_btn.disabled = busy
+	_login_btn.disabled = busy
+	_update_selection_dependent_buttons()
+	_update_history_details_buttons()
+	_spinner.visible = busy
+	if busy:
+		_spinner_frame = 1
+		_spinner.texture = get_theme_icon("Progress%d" % _spinner_frame, "EditorIcons")
+		_spinner_timer.start()
+	else:
+		_spinner_timer.stop()
+
+## EditorIcons ships 8 frames ("Progress1".."Progress8") meant to be cycled by editor
+## plugins to fake an indeterminate spinner; there's no dedicated spinner Control node.
+func _on_spinner_timer_timeout() -> void:
+	_spinner_frame = (_spinner_frame % 8) + 1
+	_spinner.texture = get_theme_icon("Progress%d" % _spinner_frame, "EditorIcons")
+
+
 func _get_selected_paths() -> Array:
 	var paths: Array = []
 	var item := _changes_tree.get_next_selected(null)
@@ -276,15 +428,25 @@ func _on_snapshot_pressed() -> void:
 		return
 	var desc := _commit_msg_edit.text.strip_edges()
 	_status_label.text = "Taking snapshot..."
-	var res := FxvRunner.snapshot(desc)
-	if res.success:
-		_commit_msg_edit.text = ""
-		_status_label.text = "Snapshot taken successfully."
-		request_refresh.emit()
-	else:
-		_status_label.text = "Snapshot failed."
-		push_error("[FlexVault] Snapshot failed: " + res.error_message)
+	_set_busy(true)
+	FxvRunner.snapshot_async(desc, func(res: FxvRunner.FxvResult) -> void:
+		_set_busy(false)
+		if res.success:
+			_commit_msg_edit.text = ""
+			_status_label.text = "Snapshot taken successfully."
+			request_refresh.emit()
+		else:
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Snapshot failed: %s" % reason
+			push_error("[FlexVault] Snapshot failed: " + res.error_message)
+	)
 
+## Publish snapshots the workspace first, then publishes the resulting draft, matching the
+## Unreal and Unity plugins (both combine the two into one "Publish"/"Check In" action with a
+## shared description). `fxv publish` only publishes already-committed draft snapshots, not
+## raw workspace edits, so a bare publish call would silently no-op on a dirty-but-unsnapshotted
+## workspace. Login is checked before snapshotting (not just before publishing) so a logged-out
+## user doesn't end up with a local snapshot and a failed publish.
 func _on_publish_pressed() -> void:
 	if not FxvSafetyGuards.ensure_safe_to_mutate("Publish"):
 		return
@@ -292,28 +454,79 @@ func _on_publish_pressed() -> void:
 	if desc.is_empty():
 		_status_label.text = "Publish requires a description."
 		return
-	_status_label.text = "Publishing..."
-	var res := FxvRunner.publish(desc)
-	if res.success:
-		_commit_msg_edit.text = ""
-		_status_label.text = "Published successfully."
-		request_refresh.emit()
-	else:
-		_status_label.text = "Publish failed."
-		push_error("[FlexVault] Publish failed: " + res.error_message)
+
+	var status := FxvStateCache.get_instance().get_latest_status()
+	if status != null and status.current_user.is_empty():
+		_status_label.text = "Publish requires logging in first."
+		return
+	if status != null and status.unpublished_changes == 0 and status.workspace_changes_count == 0:
+		_status_label.text = "Nothing to publish."
+		return
+
+	_status_label.text = "Taking snapshot..."
+	_set_busy(true)
+	FxvRunner.snapshot_async(desc, func(snapshot_res: FxvRunner.FxvResult) -> void:
+		if not snapshot_res.success:
+			_set_busy(false)
+			var snapshot_reason := snapshot_res.error_message if not snapshot_res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Publish failed: could not snapshot (%s)." % snapshot_reason
+			push_error("[FlexVault] Publish's snapshot step failed: " + snapshot_res.error_message)
+			return
+
+		_status_label.text = "Publishing..."
+		FxvRunner.publish_async(desc, func(publish_res: FxvRunner.FxvResult) -> void:
+			_set_busy(false)
+			if publish_res.success:
+				_commit_msg_edit.text = ""
+				_status_label.text = "Published successfully."
+				request_refresh.emit()
+			else:
+				var publish_reason := publish_res.error_message if not publish_res.error_message.is_empty() else "unknown error"
+				_status_label.text = "Publish failed: %s" % publish_reason
+				push_error("[FlexVault] Publish failed: " + publish_res.error_message)
+		)
+	)
 
 func _on_sync_pressed() -> void:
 	if not FxvSafetyGuards.ensure_safe_to_mutate("Sync Workspace"):
 		return
 	_status_label.text = "Syncing workspace..."
-	var res := FxvRunner.sync_workspace()
-	if res.success:
-		_status_label.text = "Workspace synced."
-		request_refresh.emit()
-		EditorInterface.get_resource_filesystem().scan()
-	else:
-		_status_label.text = "Sync failed."
-		push_error("[FlexVault] Sync failed: " + res.error_message)
+	_set_busy(true)
+	FxvRunner.sync_workspace_async(func(res: FxvRunner.FxvResult) -> void:
+		_set_busy(false)
+		if res.success:
+			_status_label.text = "Workspace synced."
+			var conflicted: Array = res.data.conflicted_files if res.data is FxvDto.WorkspaceSyncPayload else []
+			FxvRunner.apply_default_resolve_preference(conflicted, func(applied: bool) -> void:
+				if applied:
+					_status_label.text = "Workspace synced; conflicts auto-resolved."
+				request_refresh.emit()
+				EditorInterface.get_resource_filesystem().scan()
+			)
+		else:
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Sync failed: %s" % reason
+			push_error("[FlexVault] Sync failed: " + res.error_message)
+	)
+
+func _on_login_pressed() -> void:
+	var username := _login_edit.text.strip_edges()
+	if username.is_empty():
+		_status_label.text = "Enter a username to log in."
+		return
+	_status_label.text = "Logging in as '%s'..." % username
+	_set_busy(true)
+	FxvRunner.login_async(username, func(res: FxvRunner.FxvResult) -> void:
+		_set_busy(false)
+		if res.success:
+			_login_edit.text = ""
+			_status_label.text = "Logged in as '%s'." % username
+			request_refresh.emit()
+		else:
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Login failed: %s" % reason
+			push_error("[FlexVault] Login failed: " + res.error_message)
+	)
 
 func _on_revert_pressed() -> void:
 	var paths := _get_selected_paths()
@@ -338,14 +551,18 @@ func _execute_revert() -> void:
 	var expanded := FxvMetaHelper.expand_with_companions(paths, repo_root, known)
 
 	_status_label.text = "Reverting..."
-	var res := FxvRunner.revert(expanded)
-	if res.success:
-		_status_label.text = "Reverted %d items." % expanded.size()
-		request_refresh.emit()
-		EditorInterface.get_resource_filesystem().scan()
-	else:
-		_status_label.text = "Revert failed."
-		push_error("[FlexVault] Revert failed: " + res.error_message)
+	_set_busy(true)
+	FxvRunner.revert_async(expanded, func(res: FxvRunner.FxvResult) -> void:
+		_set_busy(false)
+		if res.success:
+			_status_label.text = "Reverted %d items." % expanded.size()
+			request_refresh.emit()
+			EditorInterface.get_resource_filesystem().scan()
+		else:
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Revert failed: %s" % reason
+			push_error("[FlexVault] Revert failed: " + res.error_message)
+	)
 
 func _on_diff_pressed() -> void:
 	var paths := _get_selected_paths()
@@ -353,7 +570,48 @@ func _on_diff_pressed() -> void:
 		_status_label.text = "Select a file to diff."
 		return
 	_status_label.text = "Opening diff viewer..."
-	FxvDiffHelper.diff_file_against_base(paths[0])
+	match FxvDiffHelper.diff_file_against_base(paths[0]):
+		FxvDiffHelper.DiffResult.UNCHANGED:
+			_status_label.text = "%s has no differences against its base revision." % paths[0]
+		FxvDiffHelper.DiffResult.ERROR:
+			_status_label.text = "Failed to open diff for %s." % paths[0]
+		FxvDiffHelper.DiffResult.OPENED:
+			_status_label.text = "Diff viewer opened for %s." % paths[0]
+
+func _on_history_diff_current_pressed() -> void:
+	var file_item := _history_details_tree.get_selected()
+	var rev := _get_selected_history_revision()
+	if file_item == null or rev.is_empty():
+		_status_label.text = "Select a revision and file to diff."
+		return
+
+	var path := file_item.get_text(0)
+	_status_label.text = "Opening diff viewer..."
+	match FxvDiffHelper.diff_file_against_base(path, rev):
+		FxvDiffHelper.DiffResult.UNCHANGED:
+			_status_label.text = "%s has no differences between %s and the current workspace." % [path, rev]
+		FxvDiffHelper.DiffResult.ERROR:
+			_status_label.text = "Failed to open diff for %s." % path
+		FxvDiffHelper.DiffResult.OPENED:
+			_status_label.text = "Diff viewer opened for %s (%s vs current)." % [path, rev]
+
+func _on_history_diff_previous_pressed() -> void:
+	var file_item := _history_details_tree.get_selected()
+	var rev := _get_selected_history_revision()
+	var prev_rev := _get_previous_history_revision()
+	if file_item == null or rev.is_empty() or prev_rev.is_empty():
+		_status_label.text = "Select a revision and file to diff."
+		return
+
+	var path := file_item.get_text(0)
+	_status_label.text = "Opening diff viewer..."
+	match FxvDiffHelper.diff_file_between_revisions(path, prev_rev, rev):
+		FxvDiffHelper.DiffResult.UNCHANGED:
+			_status_label.text = "%s has no differences between %s and %s." % [path, prev_rev, rev]
+		FxvDiffHelper.DiffResult.ERROR:
+			_status_label.text = "Failed to open diff for %s." % path
+		FxvDiffHelper.DiffResult.OPENED:
+			_status_label.text = "Diff viewer opened for %s (%s vs %s)." % [path, prev_rev, rev]
 
 func _on_resolve_pressed(mode: String) -> void:
 	if not FxvSafetyGuards.ensure_safe_to_mutate("Resolve"):
@@ -366,21 +624,57 @@ func _on_resolve_pressed(mode: String) -> void:
 	var expanded := FxvMetaHelper.expand_with_companions(paths, repo_root, known) if paths.size() > 0 else []
 
 	_status_label.text = "Resolving..."
-	var res := FxvRunner.resolve(mode, expanded)
-	if res.success:
-		_status_label.text = "Resolved conflict(s)."
-		request_refresh.emit()
-		EditorInterface.get_resource_filesystem().scan()
-	else:
-		_status_label.text = "Resolve failed."
-		push_error("[FlexVault] Resolve failed: " + res.error_message)
+	_set_busy(true)
+	FxvRunner.resolve_async(mode, expanded, func(res: FxvRunner.FxvResult) -> void:
+		_set_busy(false)
+		if res.success:
+			_status_label.text = "Resolved conflict(s)."
+			request_refresh.emit()
+			EditorInterface.get_resource_filesystem().scan()
+		else:
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Resolve failed: %s" % reason
+			push_error("[FlexVault] Resolve failed: " + res.error_message)
+	)
 
-func _load_history() -> void:
+## Cheap signature of "what history should currently look like." Used to skip redundant
+## reloads (and the selection loss / flicker they cause) when nothing has actually
+## changed since the last load, e.g. a routine background status poll.
+func _current_history_fingerprint() -> String:
+	var status := FxvStateCache.get_instance().get_latest_status()
+	if status == null:
+		return ""
+	return "%s|%s" % [status.current_branch, status.head_revision_display]
+
+
+## `force`: always reload (used by the Refresh History button and the initial load).
+## When false, skips the reload entirely if the workspace head hasn't moved since the
+## last successful load, so the tree, selection, and loaded change-info detail are left
+## untouched.
+func _load_history(force: bool = true) -> void:
+	if not force and _history_tree.get_root() != null:
+		var fp := _current_history_fingerprint()
+		if not fp.is_empty() and fp == _history_loaded_fingerprint:
+			return
+
+	var previously_selected_rev := _get_selected_history_revision()
+
 	_history_tree.clear()
-	var root := _history_tree.create_item()
+	_history_tree.create_item()
+	_history_details_tree.clear()
+	_history_details_label.text = "Select a revision to see changed files."
 
 	_status_label.text = "Loading history..."
-	var res := FxvRunner.get_history(50)
+	_set_busy(true)
+	FxvRunner.get_history_async(_on_history_loaded.bind(previously_selected_rev), 50)
+
+
+func _on_history_loaded(res: FxvRunner.FxvResult, previously_selected_rev: String) -> void:
+	_set_busy(false)
+	var root := _history_tree.get_root()
+	if root == null:
+		root = _history_tree.create_item()
+
 	if res.success and res.data is FxvDto.HistoryPayload:
 		var hp: FxvDto.HistoryPayload = res.data
 		var cache := FxvStateCache.get_instance()
@@ -393,9 +687,12 @@ func _load_history() -> void:
 			elif latest_status.head_commit.published_head != null:
 				current_hash = latest_status.head_commit.published_head.commit_hash
 
+		var restored_item: TreeItem = null
 		for entry in hp.entries:
 			var item := _history_tree.create_item(root)
-			item.set_metadata(0, entry.revision_display)
+			item.set_metadata(0, entry)
+			if not previously_selected_rev.is_empty() and entry.revision_display == previously_selected_rev:
+				restored_item = item
 			var is_current := false
 			if not current_rev.is_empty() and entry.revision_display == current_rev:
 				is_current = true
@@ -414,6 +711,13 @@ func _load_history() -> void:
 				var highlight_col := Color(0.4, 0.8, 1.0) # Accent cyan/blue
 				for col_idx in range(4):
 					item.set_custom_color(col_idx, highlight_col)
+
+		if restored_item != null:
+			restored_item.select(0)
+			if _change_info_cache.has(previously_selected_rev):
+				_render_change_info(previously_selected_rev, _change_info_cache[previously_selected_rev])
+
+		_history_loaded_fingerprint = _current_history_fingerprint()
 		_status_label.text = "History loaded (%d commits)." % hp.entries.size()
 	else:
 		_status_label.text = "Failed to load history."
@@ -427,14 +731,81 @@ static func _format_timestamp(timestamp_millis: int) -> String:
 	return "%04d-%02d-%02d %02d:%02d" % [dt.year, dt.month, dt.day, dt.hour, dt.minute]
 
 
-func _on_goto_pressed() -> void:
+## Returns the CommitRef stored as row metadata, or null if the row predates that
+## (defensively falls back to reconstructing just the revision string from the label).
+func _get_selected_history_entry() -> FxvDto.CommitRef:
 	var selected := _history_tree.get_selected()
 	if selected == null:
+		return null
+	var meta = selected.get_metadata(0)
+	if meta is FxvDto.CommitRef:
+		return meta
+	return null
+
+
+func _get_selected_history_revision() -> String:
+	var entry := _get_selected_history_entry()
+	if entry != null:
+		return entry.revision_display
+	var selected := _history_tree.get_selected()
+	if selected == null:
+		return ""
+	return selected.get_text(0).trim_prefix("● ").strip_edges()
+
+
+func _on_history_row_selected() -> void:
+	var rev := _get_selected_history_revision()
+	if rev.is_empty():
+		return
+
+	if _change_info_cache.has(rev):
+		_render_change_info(rev, _change_info_cache[rev])
+		return
+
+	_history_details_tree.clear()
+	_history_details_tree.create_item()
+	_history_details_label.text = "Loading changed files for %s..." % rev
+	FxvRunner.get_change_info_async(rev, func(res: FxvRunner.FxvResult) -> void:
+		if res.success and res.data is FxvDto.ChangeInfoPayload:
+			_change_info_cache[rev] = res.data
+			_render_change_info(rev, res.data)
+		else:
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_history_details_label.text = "Failed to load changed files for %s: %s" % [rev, reason]
+	)
+
+
+func _render_change_info(rev: String, payload: FxvDto.ChangeInfoPayload) -> void:
+	_history_details_tree.clear()
+	var root := _history_details_tree.create_item()
+
+	for change in payload.changes:
+		var item := _history_details_tree.create_item(root)
+		item.set_text(0, change.path)
+		item.set_text(1, change.action.capitalize())
+		item.set_text(2, _format_size(change.size))
+
+	_history_details_label.text = "%s — %d file(s) changed" % [rev, payload.changes.size()]
+	# Rebuilding the tree above drops any prior selection.
+	_update_history_details_buttons()
+
+
+static func _format_size(size: int) -> String:
+	if size <= 0:
+		return ""
+	if size < 1024:
+		return "%d B" % size
+	if size < 1048576:
+		return "%.1f KB" % (size / 1024.0)
+	return "%.1f MB" % (size / 1048576.0)
+
+
+func _on_goto_pressed() -> void:
+	if _history_tree.get_selected() == null:
 		_status_label.text = "Select a revision in history first."
 		return
 
-	var meta_rev = selected.get_metadata(0)
-	var rev: String = str(meta_rev) if meta_rev != null else selected.get_text(0).trim_prefix("● ").strip_edges()
+	var rev := _get_selected_history_revision()
 	if rev.is_empty():
 		_status_label.text = "Invalid revision selected."
 		return
@@ -442,11 +813,15 @@ func _on_goto_pressed() -> void:
 		return
 
 	_status_label.text = "Switching workspace to revision %s..." % rev
-	var res := FxvRunner.goto_revision(rev)
-	if res.success:
-		_status_label.text = "Switched to %s." % rev
-		request_refresh.emit()
-		EditorInterface.get_resource_filesystem().scan()
-	else:
-		_status_label.text = "Goto failed."
-		push_error("[FlexVault] Goto revision failed: " + res.error_message)
+	_set_busy(true)
+	FxvRunner.goto_revision_async(rev, func(res: FxvRunner.FxvResult) -> void:
+		_set_busy(false)
+		if res.success:
+			_status_label.text = "Switched to %s." % rev
+			request_refresh.emit()
+			EditorInterface.get_resource_filesystem().scan()
+		else:
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Goto failed: %s" % reason
+			push_error("[FlexVault] Goto revision failed: " + res.error_message)
+	)
