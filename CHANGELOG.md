@@ -2,14 +2,17 @@
 
 ## [Unreleased]
 
-### Fixed
-- Clicking **Publish** with no local snapshot taken (and no prior unpublished draft) no
-  longer reports "Published successfully." while actually doing nothing. `fxv publish` only
-  publishes committed draft snapshots, not raw workspace edits, and exits 0 whether or not
-  there was anything to publish; `snapshot`/`publish` also don't support `--format json`, so
-  there was no payload to tell the two cases apart. The dock now checks the cached status
-  first and reports "Nothing to publish." (or, if there are unsnapshotted workspace changes,
-  a hint to snapshot first) instead of calling the CLI.
+### Changed
+- **Publish** now snapshots the workspace before publishing, matching the Unreal and Unity
+  plugins (both already combine "Check In"/"Publish" into snapshot-then-publish with a shared
+  description). Previously Publish called `fxv publish` directly, which only publishes
+  already-committed draft snapshots, not raw workspace edits; clicking it with unsnapshotted
+  changes reported "Published successfully." while actually publishing nothing new, since
+  `fxv publish` exits 0 either way and (like `snapshot`) has no `--format json` output to tell
+  the two cases apart. Login is now checked before the snapshot step, not just before publish,
+  so a logged-out user can't end up with a local snapshot and a failed publish. Publish still
+  short-circuits with "Nothing to publish." when the cached status shows no workspace or draft
+  changes at all, instead of running the CLI.
 
 ### Added
 - The toolbar now shows an animated loading spinner next to the status label whenever a CLI

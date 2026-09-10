@@ -441,6 +441,12 @@ func _on_snapshot_pressed() -> void:
 			push_error("[FlexVault] Snapshot failed: " + res.error_message)
 	)
 
+## Publish snapshots the workspace first, then publishes the resulting draft, matching the
+## Unreal and Unity plugins (both combine the two into one "Publish"/"Check In" action with a
+## shared description). `fxv publish` only publishes already-committed draft snapshots, not
+## raw workspace edits, so a bare publish call would silently no-op on a dirty-but-unsnapshotted
+## workspace. Login is checked before snapshotting (not just before publishing) so a logged-out
+## user doesn't end up with a local snapshot and a failed publish.
 func _on_publish_pressed() -> void:
 	if not FxvSafetyGuards.ensure_safe_to_mutate("Publish"):
 		return
@@ -449,30 +455,36 @@ func _on_publish_pressed() -> void:
 		_status_label.text = "Publish requires a description."
 		return
 
-	# `fxv publish` only publishes committed draft snapshots, not raw workspace edits, and
-	# reports success (exit code 0) even when there's nothing to publish, with no JSON output
-	# to tell the two apart (`snapshot`/`publish` don't support --format json). Catch the no-op
-	# here instead of running the CLI and reporting a misleading "Published successfully."
 	var status := FxvStateCache.get_instance().get_latest_status()
-	if status != null and status.unpublished_changes == 0:
-		if status.workspace_changes_count > 0:
-			_status_label.text = "Nothing to publish: take a snapshot first to include your workspace changes."
-		else:
-			_status_label.text = "Nothing to publish."
+	if status != null and status.current_user.is_empty():
+		_status_label.text = "Publish requires logging in first."
+		return
+	if status != null and status.unpublished_changes == 0 and status.workspace_changes_count == 0:
+		_status_label.text = "Nothing to publish."
 		return
 
-	_status_label.text = "Publishing..."
+	_status_label.text = "Taking snapshot..."
 	_set_busy(true)
-	FxvRunner.publish_async(desc, func(res: FxvRunner.FxvResult) -> void:
-		_set_busy(false)
-		if res.success:
-			_commit_msg_edit.text = ""
-			_status_label.text = "Published successfully."
-			request_refresh.emit()
-		else:
-			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
-			_status_label.text = "Publish failed: %s" % reason
-			push_error("[FlexVault] Publish failed: " + res.error_message)
+	FxvRunner.snapshot_async(desc, func(snapshot_res: FxvRunner.FxvResult) -> void:
+		if not snapshot_res.success:
+			_set_busy(false)
+			var snapshot_reason := snapshot_res.error_message if not snapshot_res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Publish failed: could not snapshot (%s)." % snapshot_reason
+			push_error("[FlexVault] Publish's snapshot step failed: " + snapshot_res.error_message)
+			return
+
+		_status_label.text = "Publishing..."
+		FxvRunner.publish_async(desc, func(publish_res: FxvRunner.FxvResult) -> void:
+			_set_busy(false)
+			if publish_res.success:
+				_commit_msg_edit.text = ""
+				_status_label.text = "Published successfully."
+				request_refresh.emit()
+			else:
+				var publish_reason := publish_res.error_message if not publish_res.error_message.is_empty() else "unknown error"
+				_status_label.text = "Publish failed: %s" % publish_reason
+				push_error("[FlexVault] Publish failed: " + publish_res.error_message)
+		)
 	)
 
 func _on_sync_pressed() -> void:
