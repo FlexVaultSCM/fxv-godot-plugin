@@ -10,10 +10,14 @@
   dock that Snapshot had already run and only Publish remained.
 
 ### Changed
-- The Changes tab's tree/description split now starts at 50% width instead of the
-  description panel being squeezed down to its 240px minimum by default. Re-centers on
-  every layout pass (the dock resizes more than once while the project loads) until the
-  user actually drags the divider.
+- The Changes tab's tree/description split now actually starts at 50% width. The
+  description panel (`commit_panel`) was missing `SIZE_EXPAND_FILL`, so Godot's default
+  split position already gave it just its 240px minimum; the previous fix tried to correct
+  this by setting `split_offset` to half the container's width on every resize, but
+  `split_offset` is a delta added on top of that default position, not an absolute pixel
+  coordinate, so it pushed the divider off past the visible width and had no visible effect.
+  Fixed by giving both sides `SIZE_EXPAND_FILL` so Godot's own default split is 50/50; the
+  per-resize recentering hack is no longer needed and has been removed.
 - Removed the bottom dock's **Log Out** button. It's a rare, deliberate action that doesn't
   belong next to the common toolbar actions where it's easy to click by accident; use
   `fxv logout` directly if you need to switch users. `FxvRunner.logout()` /
@@ -29,18 +33,18 @@
 ### Added
 - The History tab's changed-files detail panel now has **Diff Against Current** and **Diff
   Against Previous** buttons, enabled when a file is selected there. Against Current opens
-  the same diff viewer as the Changes tab's Diff Base, comparing the file as of the selected
+  the same diff viewer as the Changes tab's Diff Against Previous, comparing the file as of the selected
   revision against the live workspace copy; Against Previous fetches the file as of the
   selected revision and as of the next-older revision in the loaded history list and diffs
   those against each other via a new `FxvDiffHelper.diff_file_between_revisions()`. Both
   report "no differences" instead of opening an empty diff when the two sides hash
-  identically, same as Diff Base.
+  identically, same as Diff Against Previous.
 
 ### Changed
 - The History tab's **Switch to Revision (Goto)** button is now disabled until a revision
   is selected in the history list, instead of being always-clickable and silently no-op'ing
-  when nothing was selected. Same pattern already used for the Changes tab's Diff Base and
-  Revert Selected buttons.
+  when nothing was selected. Same pattern already used for the Changes tab's Diff Against
+  Previous and Revert Selected buttons.
 
 ### Added
 - The toolbar's **Sync Workspace** button now shows the revs-behind count (e.g. "Sync

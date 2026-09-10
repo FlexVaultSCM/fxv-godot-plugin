@@ -40,8 +40,6 @@ var _history_loaded_fingerprint: String = ""
 
 var _confirm_dialog: ConfirmationDialog
 var _busy: bool = false
-var _changes_split: HSplitContainer
-var _changes_split_user_set: bool = false
 
 func _init() -> void:
 	name = "FlexVault"
@@ -113,13 +111,6 @@ func _build_ui() -> void:
 	var changes_split := HSplitContainer.new()
 	changes_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_changes_view.add_child(changes_split)
-	_changes_split = changes_split
-	# split_offset can't be set to a meaningful pixel value until the container has a real
-	# size, and the dock goes through several intermediate layout passes (often at zero size)
-	# before settling on load, so keep re-centering on every resize instead of a one-shot —
-	# until the user actually drags the divider themselves.
-	changes_split.resized.connect(_on_changes_split_resized)
-	changes_split.dragged.connect(func(_offset: int) -> void: _changes_split_user_set = true)
 
 	# Left side: Changes Tree
 	var tree_container := VBoxContainer.new()
@@ -167,6 +158,7 @@ func _build_ui() -> void:
 	# Right side: Commit / Snapshot Panel
 	var commit_panel := VBoxContainer.new()
 	commit_panel.custom_minimum_size = Vector2(240, 0)
+	commit_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	changes_split.add_child(commit_panel)
 
 	var desc_lbl := Label.new()
@@ -351,11 +343,6 @@ func _update_changes_tree() -> void:
 
 	# Rebuilding the tree above drops any prior selection.
 	_update_selection_dependent_buttons()
-
-func _on_changes_split_resized() -> void:
-	if _changes_split_user_set or _changes_split.size.x <= 0:
-		return
-	_changes_split.split_offset = int(_changes_split.size.x / 2.0)
 
 ## Diff Against Previous only makes sense for a single file; Revert Selected works on any non-empty
 ## selection. Both stay disabled with nothing selected instead of no-op'ing on click.
