@@ -6,6 +6,8 @@ extends EditorPlugin
 var _bottom_dock: FxvBottomDock
 var _state_cache: FxvStateCache
 var _auto_refresh_timer: Timer
+var _import_refresh_debounce: Timer
+var _on_resources_reimported: Callable
 
 func _enter_tree() -> void:
 	FxvSettings.register_settings()
@@ -31,6 +33,19 @@ func _enter_tree() -> void:
 	_auto_refresh_timer.timeout.connect(_on_timer_refresh)
 	add_child(_auto_refresh_timer)
 
+	# Debounced immediate refresh when Godot notices files changed on disk (import, move,
+	# delete), instead of waiting for the next 10-second poll.
+	_import_refresh_debounce = Timer.new()
+	_import_refresh_debounce.wait_time = 0.3
+	_import_refresh_debounce.one_shot = true
+	_import_refresh_debounce.timeout.connect(_on_import_refresh_debounce_timeout)
+	add_child(_import_refresh_debounce)
+
+	_on_resources_reimported = func(_paths: PackedStringArray): _on_filesystem_changed()
+	var resource_fs := EditorInterface.get_resource_filesystem()
+	resource_fs.filesystem_changed.connect(_on_filesystem_changed)
+	resource_fs.resources_reimported.connect(_on_resources_reimported)
+
 	# Initial version check and refresh
 	if FxvSettings.is_in_flexvault_repository():
 		FxvRunner.ensure_version_checked()
@@ -50,6 +65,15 @@ func _exit_tree() -> void:
 	if _auto_refresh_timer != null:
 		_auto_refresh_timer.queue_free()
 
+	if _import_refresh_debounce != null:
+		_import_refresh_debounce.queue_free()
+
+	var resource_fs := EditorInterface.get_resource_filesystem()
+	if resource_fs.filesystem_changed.is_connected(_on_filesystem_changed):
+		resource_fs.filesystem_changed.disconnect(_on_filesystem_changed)
+	if _on_resources_reimported.is_valid() and resource_fs.resources_reimported.is_connected(_on_resources_reimported):
+		resource_fs.resources_reimported.disconnect(_on_resources_reimported)
+
 	if _state_cache != null:
 		_state_cache.clear()
 
@@ -63,6 +87,14 @@ func _on_request_refresh() -> void:
 func _on_timer_refresh() -> void:
 	if FxvSettings.is_auto_refresh_enabled() and FxvSettings.is_in_flexvault_repository():
 		_state_cache.refresh(true, false) # skip remote metadata check on periodic poll, keep disk scan enabled
+
+func _on_filesystem_changed() -> void:
+	if FxvSettings.is_in_flexvault_repository():
+		_import_refresh_debounce.start()
+
+func _on_import_refresh_debounce_timeout() -> void:
+	if FxvSettings.is_auto_refresh_enabled() and FxvSettings.is_in_flexvault_repository():
+		_state_cache.refresh(true, false)
 
 
 func _on_menu_refresh() -> void:

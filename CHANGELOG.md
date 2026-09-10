@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Added
+- Status now refreshes immediately (debounced 0.3s) when Godot's resource filesystem
+  reports a change (asset imported, moved, or deleted), instead of only on the fixed
+  10-second poll timer. The poll timer stays as a fallback for changes the filesystem
+  watcher doesn't catch, e.g. remote-side updates.
 - New Editor Settings option, **Version Control > FlexVault > Default Resolve
   Preference** (Ask Each Time / Keep Mine / Take Theirs; default Ask Each Time). When set
   to Mine or Theirs, a Sync that produces conflicts resolves them automatically instead
