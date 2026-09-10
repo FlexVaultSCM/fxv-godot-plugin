@@ -203,6 +203,8 @@ func _build_ui() -> void:
 
 	_goto_btn = Button.new()
 	_goto_btn.text = "Switch to Revision (Goto)"
+	_goto_btn.disabled = true
+	_goto_btn.tooltip_text = "Select a revision in the history list first."
 	hist_actions.add_child(_goto_btn)
 
 	var history_split := VSplitContainer.new()
@@ -250,6 +252,7 @@ func _connect_signals() -> void:
 	_history_refresh_btn.pressed.connect(_load_history)
 	_goto_btn.pressed.connect(_on_goto_pressed)
 	_history_tree.item_selected.connect(_on_history_row_selected)
+	_history_tree.item_selected.connect(_update_selection_dependent_buttons)
 	_changes_tree.multi_selected.connect(func(_item: TreeItem, _column: int, _selected: bool): _update_selection_dependent_buttons())
 	_docs_btn.pressed.connect(func(): OS.shell_open("https://docs.fxv.dev"))
 	_discord_btn.pressed.connect(func(): OS.shell_open("https://discord.gg/KCMHRQBDf"))
@@ -339,6 +342,7 @@ func _update_selection_dependent_buttons() -> void:
 	var has_selection := _changes_tree.get_next_selected(null) != null
 	_diff_btn.disabled = _busy or not has_selection
 	_revert_btn.disabled = _busy or not has_selection
+	_goto_btn.disabled = _busy or _history_tree.get_next_selected(null) == null
 
 func _set_busy(busy: bool) -> void:
 	_busy = busy
@@ -347,7 +351,6 @@ func _set_busy(busy: bool) -> void:
 	_sync_btn.disabled = busy
 	_resolve_mine_btn.disabled = busy
 	_resolve_theirs_btn.disabled = busy
-	_goto_btn.disabled = busy
 	_history_refresh_btn.disabled = busy
 	_login_btn.disabled = busy
 	_update_selection_dependent_buttons()

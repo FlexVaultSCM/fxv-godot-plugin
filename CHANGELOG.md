@@ -20,6 +20,12 @@
   `logout_async()` are unchanged for anything that still wants to call them
   programmatically.
 
+### Changed
+- The History tab's **Switch to Revision (Goto)** button is now disabled until a revision
+  is selected in the history list, instead of being always-clickable and silently no-op'ing
+  when nothing was selected. Same pattern already used for the Changes tab's Diff Base and
+  Revert Selected buttons.
+
 ### Added
 - The toolbar's **Sync Workspace** button now shows the revs-behind count (e.g. "Sync
   Workspace (2 revs behind)") and highlights in orange whenever the published branch has
