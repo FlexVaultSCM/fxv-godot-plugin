@@ -114,6 +114,11 @@ func _build_ui() -> void:
 	var changes_split := HSplitContainer.new()
 	changes_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_changes_view.add_child(changes_split)
+	# split_offset can't be set to a meaningful pixel value until the container has been
+	# laid out and has a real size, so defer the initial 50/50 split to its first resize.
+	changes_split.resized.connect(func() -> void:
+		changes_split.split_offset = int(changes_split.size.x / 2.0)
+	, CONNECT_ONE_SHOT)
 
 	# Left side: Changes Tree
 	var tree_container := VBoxContainer.new()
