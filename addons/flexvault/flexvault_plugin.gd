@@ -19,6 +19,8 @@ func _enter_tree() -> void:
 	# Add top menu entry under Project
 	add_tool_menu_item("FlexVault: Refresh Status", Callable(self, "_on_menu_refresh"))
 	add_tool_menu_item("FlexVault: Sync Workspace", Callable(self, "_on_menu_sync"))
+	add_tool_menu_item("FlexVault: Documentation", Callable(self, "_on_menu_docs"))
+	add_tool_menu_item("FlexVault: Discord Feedback", Callable(self, "_on_menu_discord"))
 
 	# Auto-refresh timer (polls status every 10 seconds if editor is active)
 	_auto_refresh_timer = Timer.new()
@@ -36,6 +38,8 @@ func _enter_tree() -> void:
 func _exit_tree() -> void:
 	remove_tool_menu_item("FlexVault: Refresh Status")
 	remove_tool_menu_item("FlexVault: Sync Workspace")
+	remove_tool_menu_item("FlexVault: Documentation")
+	remove_tool_menu_item("FlexVault: Discord Feedback")
 
 	if _bottom_dock != null:
 		remove_control_from_bottom_panel(_bottom_dock)
@@ -56,7 +60,7 @@ func _on_request_refresh() -> void:
 
 func _on_timer_refresh() -> void:
 	if FxvSettings.is_auto_refresh_enabled() and FxvSettings.is_in_flexvault_repository():
-		_state_cache.refresh(true) # skip disk scan on periodic background poll
+		_state_cache.refresh(true, false) # skip remote metadata check on periodic poll, keep disk scan enabled
 
 
 func _on_menu_refresh() -> void:
@@ -71,3 +75,9 @@ func _on_menu_sync() -> void:
 		EditorInterface.get_resource_filesystem().scan()
 	else:
 		push_error("[FlexVault] Sync failed: " + res.error_message)
+
+func _on_menu_docs() -> void:
+	OS.shell_open("https://docs.fxv.dev")
+
+func _on_menu_discord() -> void:
+	OS.shell_open("https://discord.gg/KCMHRQBDf")

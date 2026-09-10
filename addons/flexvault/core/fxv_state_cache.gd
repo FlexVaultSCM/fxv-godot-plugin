@@ -58,6 +58,19 @@ func get_workspace_changes() -> Array[FxvDto.FileStatusItem]:
 func get_unpublished_changes() -> Array[FxvDto.FileStatusItem]:
 	return _unpublished_changes.duplicate()
 
+func has_conflicts() -> bool:
+	for f in _changed_files:
+		if f.is_conflicted:
+			return true
+	return false
+
+func get_conflicted_files() -> Array[FxvDto.FileStatusItem]:
+	var conflicts: Array[FxvDto.FileStatusItem] = []
+	for f in _changed_files:
+		if f.is_conflicted:
+			conflicts.append(f)
+	return conflicts
+
 func has_pending_changes(path: String) -> bool:
 	var item := get_status_by_path(path)
 	if item != null and (item.needs_snapshot or item.is_conflicted):
@@ -70,7 +83,7 @@ func has_pending_changes(path: String) -> bool:
 
 	return false
 
-func refresh(skip_scan: bool = false) -> void:
+func refresh(skip_remote_update: bool = false, skip_scan: bool = false) -> void:
 	if not FxvSettings.is_in_flexvault_repository():
 		return
 
@@ -80,7 +93,7 @@ func refresh(skip_scan: bool = false) -> void:
 	_is_refreshing = true
 
 	# Run CLI command
-	var res := FxvRunner.get_status(skip_scan)
+	var res := FxvRunner.get_status(skip_remote_update, skip_scan)
 	_is_refreshing = false
 	_last_refresh_time = Time.get_ticks_msec() / 1000.0
 

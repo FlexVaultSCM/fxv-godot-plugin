@@ -23,6 +23,8 @@ var _resolve_theirs_btn: Button
 var _refresh_btn: Button
 var _status_label: Label
 var _user_branch_label: Label
+var _docs_btn: Button
+var _discord_btn: Button
 
 # History controls
 var _history_tree: Tree
@@ -38,6 +40,9 @@ func _init() -> void:
 func _ready() -> void:
 	_build_ui()
 	_connect_signals()
+	_on_state_changed()
+	if FxvSettings.is_in_flexvault_repository():
+		_load_history()
 
 func _build_ui() -> void:
 	_confirm_dialog = ConfirmationDialog.new()
@@ -67,6 +72,18 @@ func _build_ui() -> void:
 	_status_label = Label.new()
 	_status_label.text = "Ready"
 	toolbar.add_child(_status_label)
+
+	toolbar.add_spacer(false)
+
+	_docs_btn = Button.new()
+	_docs_btn.text = "Docs"
+	_docs_btn.tooltip_text = "Open FlexVault Documentation (https://docs.fxv.dev)"
+	toolbar.add_child(_docs_btn)
+
+	_discord_btn = Button.new()
+	_discord_btn.text = "Discord"
+	_discord_btn.tooltip_text = "Join the FlexVault Discord community for questions and feedback"
+	toolbar.add_child(_discord_btn)
 
 	# Tab Container
 	_tabs = TabContainer.new()
@@ -112,10 +129,12 @@ func _build_ui() -> void:
 
 	_resolve_mine_btn = Button.new()
 	_resolve_mine_btn.text = "Resolve (Mine)"
+	_resolve_mine_btn.visible = false
 	tree_actions.add_child(_resolve_mine_btn)
 
 	_resolve_theirs_btn = Button.new()
 	_resolve_theirs_btn.text = "Resolve (Theirs)"
+	_resolve_theirs_btn.visible = false
 	tree_actions.add_child(_resolve_theirs_btn)
 
 	# Right side: Commit / Snapshot Panel
@@ -165,8 +184,8 @@ func _build_ui() -> void:
 	_history_tree.columns = 4
 	_history_tree.set_column_title(0, "Revision")
 	_history_tree.set_column_title(1, "Author")
-	_history_tree.set_column_title(2, "Description")
-	_history_tree.set_column_title(3, "Hash")
+	_history_tree.set_column_title(2, "Date/Time")
+	_history_tree.set_column_title(3, "Description")
 	_history_tree.column_titles_visible = true
 	_history_tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_history_view.add_child(_history_tree)
@@ -180,11 +199,18 @@ func _connect_signals() -> void:
 	_diff_btn.pressed.connect(_on_diff_pressed)
 	_resolve_mine_btn.pressed.connect(func(): _on_resolve_pressed("mine"))
 	_resolve_theirs_btn.pressed.connect(func(): _on_resolve_pressed("theirs"))
+	_tabs.tab_changed.connect(_on_tab_changed)
 	_history_refresh_btn.pressed.connect(_load_history)
 	_goto_btn.pressed.connect(_on_goto_pressed)
+	_docs_btn.pressed.connect(func(): OS.shell_open("https://docs.fxv.dev"))
+	_discord_btn.pressed.connect(func(): OS.shell_open("https://discord.gg/KCMHRQBDf"))
 
 	var cache := FxvStateCache.get_instance()
 	cache.state_changed.connect(_on_state_changed)
+
+func _on_tab_changed(tab_idx: int) -> void:
+	if tab_idx == 1: # History tab
+		_load_history()
 
 func _on_state_changed() -> void:
 	var cache := FxvStateCache.get_instance()
@@ -194,9 +220,12 @@ func _on_state_changed() -> void:
 		var behind := ""
 		if status.sync_status != null and not status.sync_status.up_to_date:
 			behind = " (%d revs behind)" % status.sync_status.revisions_behind
-		_user_branch_label.text = "Branch: %s%s | User: %s" % [status.current_branch, behind, status.current_user]
+		var rev_str := status.head_revision_display
+		_user_branch_label.text = "Branch: %s (%s)%s | User: %s" % [status.current_branch, rev_str, behind, status.current_user]
 
 	_update_changes_tree()
+	if _tabs.current_tab == 1:
+		_load_history()
 
 func _update_changes_tree() -> void:
 	_changes_tree.clear()
@@ -229,6 +258,10 @@ func _update_changes_tree() -> void:
 			"deleted": col = Color(0.95, 0.3, 0.3)
 			"conflicted": col = Color(1.0, 0.6, 0.2)
 		item.set_custom_color(1, col)
+
+	var has_conflicts := cache.has_conflicts()
+	_resolve_mine_btn.visible = has_conflicts
+	_resolve_theirs_btn.visible = has_conflicts
 
 func _get_selected_paths() -> Array:
 	var paths: Array = []
@@ -350,16 +383,48 @@ func _load_history() -> void:
 	var res := FxvRunner.get_history(50)
 	if res.success and res.data is FxvDto.HistoryPayload:
 		var hp: FxvDto.HistoryPayload = res.data
+		var cache := FxvStateCache.get_instance()
+		var latest_status := cache.get_latest_status()
+		var current_rev := latest_status.head_revision_display if latest_status != null else ""
+		var current_hash := ""
+		if latest_status != null and latest_status.head_commit != null:
+			if latest_status.head_commit.local_snapshot != null:
+				current_hash = latest_status.head_commit.local_snapshot.commit_hash
+			elif latest_status.head_commit.published_head != null:
+				current_hash = latest_status.head_commit.published_head.commit_hash
+
 		for entry in hp.entries:
 			var item := _history_tree.create_item(root)
-			item.set_text(0, entry.revision_display)
+			item.set_metadata(0, entry.revision_display)
+			var is_current := false
+			if not current_rev.is_empty() and entry.revision_display == current_rev:
+				is_current = true
+			elif not current_hash.is_empty() and entry.commit_hash == current_hash:
+				is_current = true
+
+			var rev_text := entry.revision_display
+			if is_current:
+				rev_text = "● " + rev_text
+			item.set_text(0, rev_text)
 			item.set_text(1, entry.author_display_name if not entry.author_display_name.is_empty() else entry.author_id)
-			item.set_text(2, entry.description)
-			var hash_str := entry.commit_hash.substr(0, 8) if not entry.commit_hash.is_empty() else "-"
-			item.set_text(3, hash_str)
+			item.set_text(2, _format_timestamp(entry.timestamp_millis))
+			item.set_text(3, entry.description)
+
+			if is_current:
+				var highlight_col := Color(0.4, 0.8, 1.0) # Accent cyan/blue
+				for col_idx in range(4):
+					item.set_custom_color(col_idx, highlight_col)
 		_status_label.text = "History loaded (%d commits)." % hp.entries.size()
 	else:
 		_status_label.text = "Failed to load history."
+
+
+static func _format_timestamp(timestamp_millis: int) -> String:
+	if timestamp_millis <= 0:
+		return "-"
+	var unix_sec := int(timestamp_millis / 1000)
+	var dt := Time.get_datetime_dict_from_unix_time(unix_sec)
+	return "%04d-%02d-%02d %02d:%02d" % [dt.year, dt.month, dt.day, dt.hour, dt.minute]
 
 
 func _on_goto_pressed() -> void:
@@ -368,7 +433,11 @@ func _on_goto_pressed() -> void:
 		_status_label.text = "Select a revision in history first."
 		return
 
-	var rev := selected.get_text(0)
+	var meta_rev = selected.get_metadata(0)
+	var rev: String = str(meta_rev) if meta_rev != null else selected.get_text(0).trim_prefix("● ").strip_edges()
+	if rev.is_empty():
+		_status_label.text = "Invalid revision selected."
+		return
 	if not FxvSafetyGuards.ensure_safe_to_mutate("Goto Revision"):
 		return
 

@@ -121,11 +121,12 @@ static func run_command(
 	return result
 
 
-static func get_status(skip_scan: bool = false) -> FxvResult:
+static func get_status(skip_remote_update: bool = false, skip_scan: bool = false) -> FxvResult:
 	var args := ["status"]
+	if skip_remote_update:
+		args.append("--skip-remote-update")
 	if skip_scan:
 		args.append("--skip-scan")
-		args.append("--skip-remote-update")
 
 	var res := run_command(args)
 	if res.success and res.data is Dictionary:

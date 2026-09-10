@@ -6,8 +6,13 @@ func _init():
 	test_version_guard()
 	test_meta_helper()
 	test_dto()
+	test_settings()
+	test_runner()
+	test_ui()
 	print("--- All Godot Tests Passed Successfully! ---")
 	quit(0)
+
+
 
 func test_version_guard():
 	print("Testing FxvVersionGuard...")
@@ -63,3 +68,28 @@ func test_dto():
 	assert(item.needs_snapshot == true, "Should need snapshot")
 	assert(item.effective_state == "modified", "Effective state mismatch")
 	print("FxvDto OK.")
+
+func test_settings():
+	print("Testing FxvSettings...")
+	var proj_root = FxvSettings.get_project_root()
+	assert(not proj_root.is_empty(), "Project root should not be empty")
+	var repo_root = FxvSettings.get_repository_root()
+	assert(not repo_root.is_empty(), "Repository root should not be empty")
+	var bin_path = FxvSettings.get_effective_binary_path()
+	assert(not bin_path.is_empty(), "Effective binary path should not be empty")
+	print("FxvSettings OK.")
+
+func test_runner():
+	print("Testing FxvRunner...")
+	var has_checked = FxvRunner.ensure_version_checked()
+	print("ensure_version_checked result: ", has_checked)
+	print("FxvRunner OK.")
+
+func test_ui():
+	print("Testing FxvBottomDock UI...")
+	var dock = FxvBottomDock.new()
+	assert(dock != null, "Dock instantiation failed")
+	dock.free()
+	print("FxvBottomDock OK.")
+
+

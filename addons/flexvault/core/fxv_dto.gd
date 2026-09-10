@@ -1,4 +1,4 @@
-﻿@tool
+@tool
 class_name FxvDto
 extends RefCounted
 
@@ -167,6 +167,17 @@ class StatusPayload extends RefCounted:
 	var total_changes: int = 0
 	var unpublished_changes: int = 0
 	var workspace_changes_count: int = 0
+	var head_revision_display: String:
+		get:
+			if head_commit == null:
+				return "-"
+			if head_commit.local_snapshot != null:
+				return head_commit.local_snapshot.revision_display
+			if head_commit.published_head != null:
+				return head_commit.published_head.revision_display
+			if not head_commit.branch.is_empty():
+				return head_commit.branch
+			return "-"
 
 	static func from_dict(d: Dictionary) -> StatusPayload:
 		var sp := StatusPayload.new()
