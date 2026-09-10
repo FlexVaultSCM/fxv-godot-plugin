@@ -106,7 +106,11 @@ class CommitRef extends RefCounted:
 		get:
 			if commit == null:
 				return "unknown"
-			if commit.type == "draft" and commit.draft_revision != null:
+			# draft_revision == 0 means the workspace snapshot has no draft changes beyond the
+			# published head, so it displays the same as the published revision (e.g. "main.1"),
+			# not with a spurious ".0" draft suffix that won't match the published entry's own
+			# revision_display (used to detect the current row in the History tab).
+			if commit.type == "draft" and commit.draft_revision != null and int(commit.draft_revision) > 0:
 				if commit.revision != null:
 					return "%s.%s.%s" % [commit.branch, str(commit.revision), str(commit.draft_revision)]
 				else:

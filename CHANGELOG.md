@@ -14,6 +14,13 @@
   programmatically.
 
 ### Fixed
+- The status header showed the workspace head as `main.1.0` while the History tab listed
+  the same commit as `main.1`, so the History tab never highlighted it as the current
+  revision. `CommitRef.revision_display` appended a `.0` draft suffix whenever a commit's
+  type was `draft`, even when `draft_revision` was `0` (meaning no draft snapshot exists
+  beyond the published head). It now only appends the suffix when `draft_revision > 0`, so
+  a workspace in sync with its published head displays and matches the same revision
+  string everywhere.
 - **Diff Base** no longer launches the external diff tool for a file that has no actual
   content differences against its base revision (e.g. a file flagged `maybe_changed` by a
   timestamp-only touch, or otherwise byte-identical to its base). The base revision is now
