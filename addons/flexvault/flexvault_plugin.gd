@@ -21,6 +21,7 @@ func _enter_tree() -> void:
 	add_tool_menu_item("FlexVault: Sync Workspace", Callable(self, "_on_menu_sync"))
 	add_tool_menu_item("FlexVault: Documentation", Callable(self, "_on_menu_docs"))
 	add_tool_menu_item("FlexVault: Discord Feedback", Callable(self, "_on_menu_discord"))
+	FxvContextMenu.register_actions(self)
 
 	# Auto-refresh timer (polls status every 10 seconds if editor is active)
 	_auto_refresh_timer = Timer.new()
@@ -40,6 +41,7 @@ func _exit_tree() -> void:
 	remove_tool_menu_item("FlexVault: Sync Workspace")
 	remove_tool_menu_item("FlexVault: Documentation")
 	remove_tool_menu_item("FlexVault: Discord Feedback")
+	FxvContextMenu.unregister_actions(self)
 
 	if _bottom_dock != null:
 		remove_control_from_bottom_panel(_bottom_dock)

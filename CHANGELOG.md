@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### Added
+- **Project > Tools** now includes FlexVault actions that act on whatever is currently
+  selected in the FileSystem dock: Revert Selection, Diff Selection Against Base,
+  Resolve Selection (Mine), and Resolve Selection (Theirs). `FxvContextMenu` previously
+  declared a `register_actions()` entry point that was never called and did nothing.
+  Godot's FileSystemDock has no supported API for adding entries to its native
+  right-click menu before Godot 4.3's `EditorContextMenuPlugin`, so these are exposed as
+  Tools menu items acting on the current dock selection instead.
 - New Editor Settings option, **Version Control > FlexVault > Timeout Seconds**
   (default `0`, disabled). When set above zero, an async CLI call that exceeds it is
   reported back to the caller as timed out instead of leaving the dock waiting
