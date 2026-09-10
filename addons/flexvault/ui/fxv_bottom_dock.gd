@@ -33,6 +33,8 @@ var _history_refresh_btn: Button
 var _goto_btn: Button
 var _history_details_tree: Tree
 var _history_details_label: Label
+var _history_diff_current_btn: Button
+var _history_diff_previous_btn: Button
 var _change_info_cache: Dictionary = {}
 var _history_loaded_fingerprint: String = ""
 
@@ -240,6 +242,21 @@ func _build_ui() -> void:
 	_history_details_tree.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	details_container.add_child(_history_details_tree)
 
+	var details_actions := HBoxContainer.new()
+	details_container.add_child(details_actions)
+
+	_history_diff_current_btn = Button.new()
+	_history_diff_current_btn.text = "Diff Against Current"
+	_history_diff_current_btn.disabled = true
+	_history_diff_current_btn.tooltip_text = "Select a file above to diff its selected revision against the current workspace."
+	details_actions.add_child(_history_diff_current_btn)
+
+	_history_diff_previous_btn = Button.new()
+	_history_diff_previous_btn.text = "Diff Against Previous"
+	_history_diff_previous_btn.disabled = true
+	_history_diff_previous_btn.tooltip_text = "Select a file above to diff its selected revision against the previous revision."
+	details_actions.add_child(_history_diff_previous_btn)
+
 func _connect_signals() -> void:
 	_snapshot_btn.pressed.connect(_on_snapshot_pressed)
 	_publish_btn.pressed.connect(_on_publish_pressed)
@@ -253,6 +270,10 @@ func _connect_signals() -> void:
 	_goto_btn.pressed.connect(_on_goto_pressed)
 	_history_tree.item_selected.connect(_on_history_row_selected)
 	_history_tree.item_selected.connect(_update_selection_dependent_buttons)
+	_history_tree.item_selected.connect(_update_history_details_buttons)
+	_history_details_tree.item_selected.connect(_update_history_details_buttons)
+	_history_diff_current_btn.pressed.connect(_on_history_diff_current_pressed)
+	_history_diff_previous_btn.pressed.connect(_on_history_diff_previous_pressed)
 	_changes_tree.multi_selected.connect(func(_item: TreeItem, _column: int, _selected: bool): _update_selection_dependent_buttons())
 	_docs_btn.pressed.connect(func(): OS.shell_open("https://docs.fxv.dev"))
 	_discord_btn.pressed.connect(func(): OS.shell_open("https://discord.gg/KCMHRQBDf"))
@@ -344,6 +365,28 @@ func _update_selection_dependent_buttons() -> void:
 	_revert_btn.disabled = _busy or not has_selection
 	_goto_btn.disabled = _busy or _history_tree.get_next_selected(null) == null
 
+## Both diff buttons need a file selected in the changed-files detail list; Diff Against
+## Previous additionally needs an older revision to exist (nothing to compare the oldest
+## revision in the loaded history against).
+func _update_history_details_buttons() -> void:
+	var has_selection := _history_details_tree.get_next_selected(null) != null
+	_history_diff_current_btn.disabled = _busy or not has_selection
+	_history_diff_previous_btn.disabled = _busy or not has_selection or _get_previous_history_revision().is_empty()
+
+## The revision immediately below the selected one in the history list, i.e. the next-older
+## entry. The list is CLI-ordered newest first, so this is the row directly after it.
+func _get_previous_history_revision() -> String:
+	var selected := _history_tree.get_selected()
+	if selected == null:
+		return ""
+	var next_item := selected.get_next()
+	if next_item == null:
+		return ""
+	var meta = next_item.get_metadata(0)
+	if meta is FxvDto.CommitRef:
+		return meta.revision_display
+	return ""
+
 func _set_busy(busy: bool) -> void:
 	_busy = busy
 	_snapshot_btn.disabled = busy
@@ -354,6 +397,7 @@ func _set_busy(busy: bool) -> void:
 	_history_refresh_btn.disabled = busy
 	_login_btn.disabled = busy
 	_update_selection_dependent_buttons()
+	_update_history_details_buttons()
 
 
 func _get_selected_paths() -> Array:
@@ -493,6 +537,41 @@ func _on_diff_pressed() -> void:
 			_status_label.text = "Failed to open diff for %s." % paths[0]
 		FxvDiffHelper.DiffResult.OPENED:
 			_status_label.text = "Diff viewer opened for %s." % paths[0]
+
+func _on_history_diff_current_pressed() -> void:
+	var file_item := _history_details_tree.get_selected()
+	var rev := _get_selected_history_revision()
+	if file_item == null or rev.is_empty():
+		_status_label.text = "Select a revision and file to diff."
+		return
+
+	var path := file_item.get_text(0)
+	_status_label.text = "Opening diff viewer..."
+	match FxvDiffHelper.diff_file_against_base(path, rev):
+		FxvDiffHelper.DiffResult.UNCHANGED:
+			_status_label.text = "%s has no differences between %s and the current workspace." % [path, rev]
+		FxvDiffHelper.DiffResult.ERROR:
+			_status_label.text = "Failed to open diff for %s." % path
+		FxvDiffHelper.DiffResult.OPENED:
+			_status_label.text = "Diff viewer opened for %s (%s vs current)." % [path, rev]
+
+func _on_history_diff_previous_pressed() -> void:
+	var file_item := _history_details_tree.get_selected()
+	var rev := _get_selected_history_revision()
+	var prev_rev := _get_previous_history_revision()
+	if file_item == null or rev.is_empty() or prev_rev.is_empty():
+		_status_label.text = "Select a revision and file to diff."
+		return
+
+	var path := file_item.get_text(0)
+	_status_label.text = "Opening diff viewer..."
+	match FxvDiffHelper.diff_file_between_revisions(path, prev_rev, rev):
+		FxvDiffHelper.DiffResult.UNCHANGED:
+			_status_label.text = "%s has no differences between %s and %s." % [path, prev_rev, rev]
+		FxvDiffHelper.DiffResult.ERROR:
+			_status_label.text = "Failed to open diff for %s." % path
+		FxvDiffHelper.DiffResult.OPENED:
+			_status_label.text = "Diff viewer opened for %s (%s vs %s)." % [path, prev_rev, rev]
 
 func _on_resolve_pressed(mode: String) -> void:
 	if not FxvSafetyGuards.ensure_safe_to_mutate("Resolve"):
@@ -667,6 +746,8 @@ func _render_change_info(rev: String, payload: FxvDto.ChangeInfoPayload) -> void
 		item.set_text(2, _format_size(change.size))
 
 	_history_details_label.text = "%s — %d file(s) changed" % [rev, payload.changes.size()]
+	# Rebuilding the tree above drops any prior selection.
+	_update_history_details_buttons()
 
 
 static func _format_size(size: int) -> String:

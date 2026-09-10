@@ -20,6 +20,16 @@
   `logout_async()` are unchanged for anything that still wants to call them
   programmatically.
 
+### Added
+- The History tab's changed-files detail panel now has **Diff Against Current** and **Diff
+  Against Previous** buttons, enabled when a file is selected there. Against Current opens
+  the same diff viewer as the Changes tab's Diff Base, comparing the file as of the selected
+  revision against the live workspace copy; Against Previous fetches the file as of the
+  selected revision and as of the next-older revision in the loaded history list and diffs
+  those against each other via a new `FxvDiffHelper.diff_file_between_revisions()`. Both
+  report "no differences" instead of opening an empty diff when the two sides hash
+  identically, same as Diff Base.
+
 ### Changed
 - The History tab's **Switch to Revision (Goto)** button is now disabled until a revision
   is selected in the history list, instead of being always-clickable and silently no-op'ing

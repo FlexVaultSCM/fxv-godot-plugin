@@ -78,6 +78,34 @@ static func diff_file_against_base(repo_relative_path: String, explicit_base_rev
 	return DiffResult.OPENED
 
 
+static func diff_file_between_revisions(repo_relative_path: String, revision_a: String, revision_b: String) -> DiffResult:
+	if repo_relative_path.is_empty() or revision_a.is_empty() or revision_b.is_empty():
+		return DiffResult.ERROR
+
+	var temp_dir := OS.get_user_data_dir().path_join("flexvault_diff")
+	DirAccess.make_dir_recursive_absolute(temp_dir)
+
+	var safe_a := revision_a.replace(".", "_").replace("/", "_").replace("\\", "_")
+	var safe_b := revision_b.replace(".", "_").replace("/", "_").replace("\\", "_")
+	var temp_path_a := temp_dir.path_join("%s_%s" % [safe_a, repo_relative_path.get_file()])
+	var temp_path_b := temp_dir.path_join("%s_%s" % [safe_b, repo_relative_path.get_file()])
+
+	if not FxvRunner.cat_to_file(repo_relative_path, revision_a, temp_path_a):
+		push_error("[FlexVault] Failed to retrieve revision '%s' of '%s'." % [revision_a, repo_relative_path])
+		return DiffResult.ERROR
+	if not FxvRunner.cat_to_file(repo_relative_path, revision_b, temp_path_b):
+		push_error("[FlexVault] Failed to retrieve revision '%s' of '%s'." % [revision_b, repo_relative_path])
+		return DiffResult.ERROR
+
+	if _files_identical(temp_path_a, temp_path_b):
+		DirAccess.remove_absolute(temp_path_a)
+		DirAccess.remove_absolute(temp_path_b)
+		return DiffResult.UNCHANGED
+
+	open_diff_tool(temp_path_a, temp_path_b)
+	return DiffResult.OPENED
+
+
 ## True only when both files exist and hash identically. A missing working file (e.g. the
 ## file was deleted in the workspace) or missing base is never reported as "identical" —
 ## that is a real difference worth showing in the diff tool, not a no-op.
