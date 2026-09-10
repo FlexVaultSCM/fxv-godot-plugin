@@ -511,7 +511,7 @@ func _on_history_loaded(res: FxvRunner.FxvResult) -> void:
 
 		for entry in hp.entries:
 			var item := _history_tree.create_item(root)
-			item.set_metadata(0, entry.revision_display)
+			item.set_metadata(0, entry)
 			var is_current := false
 			if not current_rev.is_empty() and entry.revision_display == current_rev:
 				is_current = true
@@ -543,18 +543,46 @@ static func _format_timestamp(timestamp_millis: int) -> String:
 	return "%04d-%02d-%02d %02d:%02d" % [dt.year, dt.month, dt.day, dt.hour, dt.minute]
 
 
-func _on_history_row_selected() -> void:
+## Returns the CommitRef stored as row metadata, or null if the row predates that
+## (defensively falls back to reconstructing just the revision string from the label).
+func _get_selected_history_entry() -> FxvDto.CommitRef:
 	var selected := _history_tree.get_selected()
 	if selected == null:
-		return
+		return null
+	var meta = selected.get_metadata(0)
+	if meta is FxvDto.CommitRef:
+		return meta
+	return null
 
-	var meta_rev = selected.get_metadata(0)
-	var rev: String = str(meta_rev) if meta_rev != null else selected.get_text(0).trim_prefix("● ").strip_edges()
+
+func _get_selected_history_revision() -> String:
+	var entry := _get_selected_history_entry()
+	if entry != null:
+		return entry.revision_display
+	var selected := _history_tree.get_selected()
+	if selected == null:
+		return ""
+	return selected.get_text(0).trim_prefix("● ").strip_edges()
+
+
+func _on_history_row_selected() -> void:
+	var entry := _get_selected_history_entry()
+	var rev := _get_selected_history_revision()
 	if rev.is_empty():
 		return
 
 	if _change_info_cache.has(rev):
 		_render_change_info(rev, _change_info_cache[rev])
+		return
+
+	# A commit whose published revision is unassigned (revision -1, e.g. a local draft
+	# that hasn't been published yet) has no prior published revision to diff against, so
+	# the CLI's changeinfo has nothing to compute. Skip the round trip and say so plainly
+	# rather than surface a generic CLI failure.
+	if entry != null and entry.commit != null and entry.commit.type == "draft" and entry.commit.revision != null and int(entry.commit.revision) == -1:
+		_history_details_tree.clear()
+		_history_details_tree.create_item()
+		_history_details_label.text = "%s is an unpublished local draft with no prior revision to compare against." % rev
 		return
 
 	_history_details_tree.clear()
@@ -565,7 +593,8 @@ func _on_history_row_selected() -> void:
 			_change_info_cache[rev] = res.data
 			_render_change_info(rev, res.data)
 		else:
-			_history_details_label.text = "Failed to load changed files for %s." % rev
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_history_details_label.text = "Failed to load changed files for %s: %s" % [rev, reason]
 	)
 
 
@@ -593,13 +622,11 @@ static func _format_size(size: int) -> String:
 
 
 func _on_goto_pressed() -> void:
-	var selected := _history_tree.get_selected()
-	if selected == null:
+	if _history_tree.get_selected() == null:
 		_status_label.text = "Select a revision in history first."
 		return
 
-	var meta_rev = selected.get_metadata(0)
-	var rev: String = str(meta_rev) if meta_rev != null else selected.get_text(0).trim_prefix("● ").strip_edges()
+	var rev := _get_selected_history_revision()
 	if rev.is_empty():
 		_status_label.text = "Invalid revision selected."
 		return

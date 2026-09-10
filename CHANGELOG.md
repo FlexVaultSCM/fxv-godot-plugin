@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+- History row selection no longer discards the actual `changeinfo` failure reason behind
+  a generic "Failed to load changed files" message. The History tab also no longer
+  attempts `changeinfo` for a row that is an unpublished local draft with no prior
+  published revision to diff against (revision `-1`, e.g. the very first snapshot on a
+  branch before anything has been published) — that case surfaced as a confusing
+  "Failed to load changed files for main.-1.0" with no explanation.
+
 ### Added
 - Status now refreshes immediately (debounced 0.3s) when Godot's resource filesystem
   reports a change (asset imported, moved, or deleted), instead of only on the fixed
