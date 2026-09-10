@@ -21,6 +21,9 @@ var _sync_btn: Button
 var _resolve_mine_btn: Button
 var _resolve_theirs_btn: Button
 var _status_label: Label
+var _spinner: TextureRect
+var _spinner_timer: Timer
+var _spinner_frame: int = 1
 var _user_branch_label: Label
 var _login_edit: LineEdit
 var _login_btn: Button
@@ -81,6 +84,17 @@ func _build_ui() -> void:
 	_login_btn = Button.new()
 	_login_btn.text = "Log In"
 	toolbar.add_child(_login_btn)
+
+	_spinner = TextureRect.new()
+	_spinner.custom_minimum_size = Vector2(16, 16)
+	_spinner.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	_spinner.visible = false
+	toolbar.add_child(_spinner)
+
+	_spinner_timer = Timer.new()
+	_spinner_timer.wait_time = 0.08
+	_spinner_timer.timeout.connect(_on_spinner_timer_timeout)
+	add_child(_spinner_timer)
 
 	_status_label = Label.new()
 	_status_label.text = "Ready"
@@ -386,6 +400,19 @@ func _set_busy(busy: bool) -> void:
 	_login_btn.disabled = busy
 	_update_selection_dependent_buttons()
 	_update_history_details_buttons()
+	_spinner.visible = busy
+	if busy:
+		_spinner_frame = 1
+		_spinner.texture = get_theme_icon("Progress%d" % _spinner_frame, "EditorIcons")
+		_spinner_timer.start()
+	else:
+		_spinner_timer.stop()
+
+## EditorIcons ships 8 frames ("Progress1".."Progress8") meant to be cycled by editor
+## plugins to fake an indeterminate spinner; there's no dedicated spinner Control node.
+func _on_spinner_timer_timeout() -> void:
+	_spinner_frame = (_spinner_frame % 8) + 1
+	_spinner.texture = get_theme_icon("Progress%d" % _spinner_frame, "EditorIcons")
 
 
 func _get_selected_paths() -> Array:

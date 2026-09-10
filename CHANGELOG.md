@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Added
+- The toolbar now shows an animated loading spinner next to the status label whenever a CLI
+  operation is in flight, cycling the editor theme's built-in `Progress1`..`Progress8`
+  icons (the same frames the native editor uses for its own loading indicators) on a
+  0.08s timer. Previously the only busy indicator was the disabled action buttons, easy to
+  miss, especially for fast operations.
 - The status header now shows an unpublished change count (e.g. "3 unpublished changes")
   whenever the workspace has snapshotted files that haven't been published yet, and their
   rows in the Changes tab are marked "(unpublished)". A snapshotted file previously showed
