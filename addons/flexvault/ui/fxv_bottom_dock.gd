@@ -210,7 +210,7 @@ func _build_ui() -> void:
 	hist_actions.add_child(_history_refresh_btn)
 
 	_goto_btn = Button.new()
-	_goto_btn.text = "Switch to Revision (Goto)"
+	_goto_btn.text = "Switch to Selected Revision"
 	_goto_btn.disabled = true
 	_goto_btn.tooltip_text = "Select a revision in the history list first."
 	hist_actions.add_child(_goto_btn)
@@ -448,6 +448,19 @@ func _on_publish_pressed() -> void:
 	if desc.is_empty():
 		_status_label.text = "Publish requires a description."
 		return
+
+	# `fxv publish` only publishes committed draft snapshots, not raw workspace edits, and
+	# reports success (exit code 0) even when there's nothing to publish, with no JSON output
+	# to tell the two apart (`snapshot`/`publish` don't support --format json). Catch the no-op
+	# here instead of running the CLI and reporting a misleading "Published successfully."
+	var status := FxvStateCache.get_instance().get_latest_status()
+	if status != null and status.unpublished_changes == 0:
+		if status.workspace_changes_count > 0:
+			_status_label.text = "Nothing to publish: take a snapshot first to include your workspace changes."
+		else:
+			_status_label.text = "Nothing to publish."
+		return
+
 	_status_label.text = "Publishing..."
 	_set_busy(true)
 	FxvRunner.publish_async(desc, func(res: FxvRunner.FxvResult) -> void:

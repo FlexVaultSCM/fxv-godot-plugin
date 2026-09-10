@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed
+- Clicking **Publish** with no local snapshot taken (and no prior unpublished draft) no
+  longer reports "Published successfully." while actually doing nothing. `fxv publish` only
+  publishes committed draft snapshots, not raw workspace edits, and exits 0 whether or not
+  there was anything to publish; `snapshot`/`publish` also don't support `--format json`, so
+  there was no payload to tell the two cases apart. The dock now checks the cached status
+  first and reports "Nothing to publish." (or, if there are unsnapshotted workspace changes,
+  a hint to snapshot first) instead of calling the CLI.
+
 ### Added
 - The toolbar now shows an animated loading spinner next to the status label whenever a CLI
   operation is in flight, cycling the editor theme's built-in `Progress1`..`Progress8`
