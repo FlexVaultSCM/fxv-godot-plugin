@@ -20,6 +20,12 @@
   `logout_async()` are unchanged for anything that still wants to call them
   programmatically.
 
+### Changed
+- Removed the toolbar's **Refresh** button. Status already auto-refreshes on a 10s poll and
+  on a debounced watch of Godot's resource filesystem, so it was almost always redundant;
+  the History tab keeps its own **Refresh History** button, which still has no automatic
+  equivalent.
+
 ### Fixed
 - The Changes tab, History tab, and the History tab's changed-files detail panel no longer
   show a stray collapse/expand arrow above their first row. Each tree's hidden root item was

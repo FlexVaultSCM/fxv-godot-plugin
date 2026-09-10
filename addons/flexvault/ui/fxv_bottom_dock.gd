@@ -20,7 +20,6 @@ var _diff_btn: Button
 var _sync_btn: Button
 var _resolve_mine_btn: Button
 var _resolve_theirs_btn: Button
-var _refresh_btn: Button
 var _status_label: Label
 var _user_branch_label: Label
 var _login_edit: LineEdit
@@ -63,10 +62,6 @@ func _build_ui() -> void:
 	var toolbar := HBoxContainer.new()
 	add_child(toolbar)
 
-
-	_refresh_btn = Button.new()
-	_refresh_btn.text = "Refresh"
-	toolbar.add_child(_refresh_btn)
 
 	_sync_btn = Button.new()
 	_sync_btn.text = "Sync Workspace"
@@ -244,7 +239,6 @@ func _build_ui() -> void:
 	details_container.add_child(_history_details_tree)
 
 func _connect_signals() -> void:
-	_refresh_btn.pressed.connect(func(): request_refresh.emit())
 	_snapshot_btn.pressed.connect(_on_snapshot_pressed)
 	_publish_btn.pressed.connect(_on_publish_pressed)
 	_sync_btn.pressed.connect(_on_sync_pressed)
