@@ -44,6 +44,15 @@ static func register_settings() -> void:
 		"type": TYPE_BOOL
 	})
 
+	if not editor_settings.has_setting(SETTING_TIMEOUT_SECONDS):
+		editor_settings.set_setting(SETTING_TIMEOUT_SECONDS, 0.0)
+	editor_settings.add_property_info({
+		"name": SETTING_TIMEOUT_SECONDS,
+		"type": TYPE_FLOAT,
+		"hint": PROPERTY_HINT_RANGE,
+		"hint_string": "0,600,1,suffix:s"
+	})
+
 
 static func get_diff_tool() -> String:
 	if not Engine.is_editor_hint():
@@ -61,6 +70,17 @@ static func is_auto_refresh_enabled() -> bool:
 	if editor_settings != null and editor_settings.has_setting(SETTING_AUTO_REFRESH):
 		return bool(editor_settings.get_setting(SETTING_AUTO_REFRESH))
 	return true
+
+
+## Seconds to wait for an async CLI call before it is reported as timed out. 0 disables
+## the watchdog (the default): the editor waits indefinitely, matching prior behavior.
+static func get_command_timeout_seconds() -> float:
+	if not Engine.is_editor_hint():
+		return 0.0
+	var editor_settings := EditorInterface.get_editor_settings()
+	if editor_settings != null and editor_settings.has_setting(SETTING_TIMEOUT_SECONDS):
+		return float(editor_settings.get_setting(SETTING_TIMEOUT_SECONDS))
+	return 0.0
 
 
 static func get_custom_binary_path() -> String:

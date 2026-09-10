@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+- New Editor Settings option, **Version Control > FlexVault > Timeout Seconds**
+  (default `0`, disabled). When set above zero, an async CLI call that exceeds it is
+  reported back to the caller as timed out instead of leaving the dock waiting
+  indefinitely.
+
 ### Changed
 - `FxvRunner` now executes the `fxv` CLI on a background `Thread` for every dock and menu
   action (`run_command_async` plus per-command async wrappers), so Snapshot, Publish,

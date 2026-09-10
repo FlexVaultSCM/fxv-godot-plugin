@@ -130,20 +130,48 @@ static func run_command(
 ## Non-blocking execution. Runs run_command() on a background Thread and delivers the
 ## FxvResult back to the caller on the main thread via `callback`, so the editor UI
 ## thread is never blocked waiting on the fxv process.
+##
+## If Editor Settings > Version Control > FlexVault > Timeout Seconds is set above zero,
+## a watchdog fires `callback` with a timed_out result once that many seconds pass without
+## a response. This only stops the editor from waiting on the CLI call; Godot's OS.execute
+## has no portable way to kill a process it already started, so the background Thread and
+## the underlying fxv process keep running until the call naturally completes, and any
+## late result is discarded rather than delivered twice.
 static func run_command_async(
 	args: Array,
 	callback: Callable,
 	custom_binary_path: String = "",
 	custom_working_dir: String = ""
 ) -> void:
+	var state := {"done": false}
 	var thread := Thread.new()
 	_active_threads.append(thread)
 
+	var deliver := func(result: FxvResult) -> void:
+		if state["done"]:
+			return
+		state["done"] = true
+		if callback.is_valid():
+			callback.call(result)
+
 	var thread_body := func() -> void:
 		var result := run_command(args, custom_binary_path, custom_working_dir)
-		Callable(FxvRunner, "_finish_async_thread").bind(thread, callback, result).call_deferred()
+		Callable(FxvRunner, "_finish_async_thread").bind(thread, deliver, result).call_deferred()
 
 	thread.start(thread_body)
+
+	var timeout_sec := FxvSettings.get_command_timeout_seconds()
+	if timeout_sec > 0.0:
+		var tree := Engine.get_main_loop() as SceneTree
+		if tree != null:
+			var timer := tree.create_timer(timeout_sec)
+			timer.timeout.connect(func() -> void:
+				var timeout_result := FxvResult.new()
+				timeout_result.success = false
+				timeout_result.timed_out = true
+				timeout_result.error_message = "FlexVault operation exceeded the configured timeout of %.0f second(s). It may still be finishing in the background." % timeout_sec
+				deliver.call(timeout_result)
+			)
 
 
 static func _finish_async_thread(thread: Thread, callback: Callable, result: FxvResult) -> void:
