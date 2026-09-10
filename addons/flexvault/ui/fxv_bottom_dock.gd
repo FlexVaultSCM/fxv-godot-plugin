@@ -39,6 +39,7 @@ var _change_info_cache: Dictionary = {}
 var _history_loaded_fingerprint: String = ""
 
 var _confirm_dialog: ConfirmationDialog
+var _logout_confirm_dialog: ConfirmationDialog
 var _busy: bool = false
 
 func _init() -> void:
@@ -57,6 +58,12 @@ func _build_ui() -> void:
 	_confirm_dialog.title = "Confirm Revert"
 	_confirm_dialog.confirmed.connect(_execute_revert)
 	add_child(_confirm_dialog)
+
+	_logout_confirm_dialog = ConfirmationDialog.new()
+	_logout_confirm_dialog.title = "Confirm Log Out"
+	_logout_confirm_dialog.dialog_text = "Log out of FlexVault? You'll need to log back in to snapshot, publish, or sync."
+	_logout_confirm_dialog.confirmed.connect(_execute_logout)
+	add_child(_logout_confirm_dialog)
 
 	# Top Toolbar
 	var toolbar := HBoxContainer.new()
@@ -88,6 +95,8 @@ func _build_ui() -> void:
 
 	_logout_btn = Button.new()
 	_logout_btn.text = "Log Out"
+	_logout_btn.flat = true
+	_logout_btn.tooltip_text = "Log out of FlexVault (uncommon — asks for confirmation)."
 	_logout_btn.visible = false
 	toolbar.add_child(_logout_btn)
 
@@ -426,6 +435,9 @@ func _on_login_pressed() -> void:
 	)
 
 func _on_logout_pressed() -> void:
+	_logout_confirm_dialog.popup_centered()
+
+func _execute_logout() -> void:
 	_status_label.text = "Logging out..."
 	_set_busy(true)
 	FxvRunner.logout_async(func(res: FxvRunner.FxvResult) -> void:

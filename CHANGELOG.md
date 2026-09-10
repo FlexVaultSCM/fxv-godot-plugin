@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+- **Log Out** now asks for confirmation before running, and is rendered as a flat (less
+  visually prominent) button next to Log In. It's a rare, deliberate action — the prior
+  full-weight button made it too easy to click by accident alongside the common actions
+  in the toolbar.
+
 ### Fixed
 - **Diff Base** no longer launches the external diff tool for a file that has no actual
   content differences against its base revision (e.g. a file flagged `maybe_changed` by a
