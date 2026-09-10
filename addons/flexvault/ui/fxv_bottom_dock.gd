@@ -25,7 +25,6 @@ var _status_label: Label
 var _user_branch_label: Label
 var _login_edit: LineEdit
 var _login_btn: Button
-var _logout_btn: Button
 var _docs_btn: Button
 var _discord_btn: Button
 
@@ -39,7 +38,6 @@ var _change_info_cache: Dictionary = {}
 var _history_loaded_fingerprint: String = ""
 
 var _confirm_dialog: ConfirmationDialog
-var _logout_confirm_dialog: ConfirmationDialog
 var _busy: bool = false
 
 func _init() -> void:
@@ -58,12 +56,6 @@ func _build_ui() -> void:
 	_confirm_dialog.title = "Confirm Revert"
 	_confirm_dialog.confirmed.connect(_execute_revert)
 	add_child(_confirm_dialog)
-
-	_logout_confirm_dialog = ConfirmationDialog.new()
-	_logout_confirm_dialog.title = "Confirm Log Out"
-	_logout_confirm_dialog.dialog_text = "Log out of FlexVault? You'll need to log back in to snapshot, publish, or sync."
-	_logout_confirm_dialog.confirmed.connect(_execute_logout)
-	add_child(_logout_confirm_dialog)
 
 	# Top Toolbar
 	var toolbar := HBoxContainer.new()
@@ -92,13 +84,6 @@ func _build_ui() -> void:
 	_login_btn = Button.new()
 	_login_btn.text = "Log In"
 	toolbar.add_child(_login_btn)
-
-	_logout_btn = Button.new()
-	_logout_btn.text = "Log Out"
-	_logout_btn.flat = true
-	_logout_btn.tooltip_text = "Log out of FlexVault (uncommon — asks for confirmation)."
-	_logout_btn.visible = false
-	toolbar.add_child(_logout_btn)
 
 	_status_label = Label.new()
 	_status_label.text = "Ready"
@@ -263,7 +248,6 @@ func _connect_signals() -> void:
 	_docs_btn.pressed.connect(func(): OS.shell_open("https://docs.fxv.dev"))
 	_discord_btn.pressed.connect(func(): OS.shell_open("https://discord.gg/KCMHRQBDf"))
 	_login_btn.pressed.connect(_on_login_pressed)
-	_logout_btn.pressed.connect(_on_logout_pressed)
 	_login_edit.text_submitted.connect(func(_text: String): _on_login_pressed())
 
 	var cache := FxvStateCache.get_instance()
@@ -286,7 +270,6 @@ func _on_state_changed() -> void:
 		_user_branch_label.text = "Branch: %s (%s)%s | User: %s" % [status.current_branch, rev_str, behind, status.current_user if is_logged_in else "logged out"]
 		_login_edit.visible = not is_logged_in
 		_login_btn.visible = not is_logged_in
-		_logout_btn.visible = is_logged_in
 
 	_update_changes_tree()
 	if _tabs.current_tab == 1:
@@ -342,7 +325,6 @@ func _set_busy(busy: bool) -> void:
 	_goto_btn.disabled = busy
 	_history_refresh_btn.disabled = busy
 	_login_btn.disabled = busy
-	_logout_btn.disabled = busy
 	_update_selection_dependent_buttons()
 
 
@@ -432,23 +414,6 @@ func _on_login_pressed() -> void:
 			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
 			_status_label.text = "Login failed: %s" % reason
 			push_error("[FlexVault] Login failed: " + res.error_message)
-	)
-
-func _on_logout_pressed() -> void:
-	_logout_confirm_dialog.popup_centered()
-
-func _execute_logout() -> void:
-	_status_label.text = "Logging out..."
-	_set_busy(true)
-	FxvRunner.logout_async(func(res: FxvRunner.FxvResult) -> void:
-		_set_busy(false)
-		if res.success:
-			_status_label.text = "Logged out."
-			request_refresh.emit()
-		else:
-			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
-			_status_label.text = "Logout failed: %s" % reason
-			push_error("[FlexVault] Logout failed: " + res.error_message)
 	)
 
 func _on_revert_pressed() -> void:

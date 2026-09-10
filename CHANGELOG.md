@@ -3,10 +3,11 @@
 ## [Unreleased]
 
 ### Changed
-- **Log Out** now asks for confirmation before running, and is rendered as a flat (less
-  visually prominent) button next to Log In. It's a rare, deliberate action — the prior
-  full-weight button made it too easy to click by accident alongside the common actions
-  in the toolbar.
+- Removed the bottom dock's **Log Out** button. It's a rare, deliberate action that doesn't
+  belong next to the common toolbar actions where it's easy to click by accident; use
+  `fxv logout` directly if you need to switch users. `FxvRunner.logout()` /
+  `logout_async()` are unchanged for anything that still wants to call them
+  programmatically.
 
 ### Fixed
 - **Diff Base** no longer launches the external diff tool for a file that has no actual
