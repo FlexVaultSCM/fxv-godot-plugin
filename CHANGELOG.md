@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [0.4.0](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.3.0...v0.4.0) (2026-09-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* the plugin now requires fxv CLI 0.10.1 or newer (previously 0.5.0 to < 0.10.0), matching the status command's schema v2 payload.
+
+### Features
+
+* require fxv CLI 0.10.1 or newer ([#5](https://github.com/FlexVaultSCM/fxv-godot-plugin/issues/5)) ([2c0c983](https://github.com/FlexVaultSCM/fxv-godot-plugin/commit/2c0c983c9b72e793f7c42acdda042867a37ff369))
+
 ## [Unreleased]
 
 ### Changed
