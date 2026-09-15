@@ -22,11 +22,30 @@ class ProgramMetadata extends RefCounted:
 		return p
 
 
+## Why a file is in conflict (fxv >= 0.10.0's `status` schema v2 `conflictState`).
+class ConflictState extends RefCounted:
+	var kind: String = ""
+
+	var description: String:
+		get:
+			match kind:
+				"content": return "Both sides changed this file's content."
+				"deleted": return "One side deleted this path while the other changed it."
+				"type_change": return "One side has a file here where the other has a directory."
+				_: return "This path is in conflict."
+
+	static func from_dict(d: Dictionary) -> ConflictState:
+		var cs := ConflictState.new()
+		if d.is_empty(): return cs
+		cs.kind = d.get("kind", "")
+		return cs
+
+
 class FileStatusItem extends RefCounted:
 	var path: String = ""
 	var unpublished_state: String = ""
 	var workspace_state: String = ""
-	var conflict_state: Variant = null
+	var conflict_state: ConflictState = null
 	var size: int = 0
 
 	var is_conflicted: bool:
@@ -70,7 +89,8 @@ class FileStatusItem extends RefCounted:
 		item.path = d.get("path", "")
 		item.unpublished_state = d.get("unpublished_state", "")
 		item.workspace_state = d.get("workspace_state", "")
-		item.conflict_state = d.get("conflict_state", null)
+		if d.get("conflict_state") is Dictionary:
+			item.conflict_state = ConflictState.from_dict(d["conflict_state"])
 		item.size = int(d.get("size", 0))
 		return item
 

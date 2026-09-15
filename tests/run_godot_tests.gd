@@ -20,11 +20,11 @@ func test_version_guard():
 	assert(sem != null, "SemVer parse failed")
 	assert(sem.major == 0 and sem.minor == 8 and sem.patch == 0, "SemVer values mismatch")
 
-	var res = FxvVersionGuard.check_version("0.8.0")
-	assert(res["compatible"] == true, "0.8.0 should be compatible")
+	var res = FxvVersionGuard.check_version("0.10.1")
+	assert(res["compatible"] == true, "0.10.1 should be compatible")
 
-	var res_old = FxvVersionGuard.check_version("0.4.0")
-	assert(res_old["compatible"] == false, "0.4.0 should be incompatible")
+	var res_old = FxvVersionGuard.check_version("0.10.0")
+	assert(res_old["compatible"] == false, "0.10.0 should be incompatible")
 
 	FxvVersionGuard.set_incompatible("custom error")
 	assert(FxvVersionGuard.is_compatible() == false, "Should be marked incompatible")
@@ -67,6 +67,17 @@ func test_dto():
 	assert(item.path == "scenes/main.tscn", "Path mismatch")
 	assert(item.needs_snapshot == true, "Should need snapshot")
 	assert(item.effective_state == "modified", "Effective state mismatch")
+
+	# status schema v2 (fxv >= 0.10.0): a conflict-only entry with no change axis,
+	# e.g. the directory side of a file/directory clash.
+	var conflict_dict = {
+		"path": "assets",
+		"conflict_state": {"kind": "type_change"}
+	}
+	var conflict_item = FxvDto.FileStatusItem.from_dict(conflict_dict)
+	assert(conflict_item.is_conflicted == true, "Should be conflicted")
+	assert(conflict_item.needs_snapshot == false, "Conflict-only entry has no workspace change")
+	assert(conflict_item.conflict_state.kind == "type_change", "Conflict kind mismatch")
 	print("FxvDto OK.")
 
 func test_settings():

@@ -352,6 +352,9 @@ func _update_changes_tree() -> void:
 			"conflicted": col = Color(1.0, 0.6, 0.2)
 		item.set_custom_color(1, col)
 
+		if f.conflict_state != null:
+			item.set_tooltip_text(1, f.conflict_state.description)
+
 	var has_conflicts := cache.has_conflicts()
 	_resolve_mine_btn.visible = has_conflicts
 	_resolve_theirs_btn.visible = has_conflicts
