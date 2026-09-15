@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+- Version guard now requires `fxv` CLI `0.10.1` or newer (previously `0.5.0` to `< 0.10.0`), matching the `status` command's schema v2 payload.
+
+### Added
+- Changes tab shows why a file is conflicted (content/deleted/type-change) as a tooltip, using the `kind` the CLI now reports on `conflict_state`.
+
 ## [0.3.0] - 2026-09-10
 
 ### Added
