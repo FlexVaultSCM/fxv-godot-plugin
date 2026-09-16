@@ -9,14 +9,16 @@ var _auto_refresh_timer: Timer
 var _import_refresh_debounce: Timer
 var _on_resources_reimported: Callable
 
-## Reimporting this many files or more in one batch (project-wide reimport, a bulk import
-## settings change, etc.) is high-entropy enough to be worth an automatic checkpoint; an
-## ordinary single-file or few-file reimport is not.
+## A project-wide reimport is worth a checkpoint; reimporting a couple of files isn't.
 const BULK_REIMPORT_SNAPSHOT_THRESHOLD := 15
 
-## Separate from the status-refresh debounce above: a single save/reimport gesture can still
-## fire its underlying signal more than once in quick succession, so gate snapshots on their
-## own cooldown to avoid spawning overlapping `fxv snapshot` processes.
+## Same idea for scene saves: only snapshot if the node count changed by a lot since the last
+## save (bulk delete/instantiate), not on every Ctrl+S.
+const NODE_COUNT_DELTA_THRESHOLD := 10
+var _last_known_node_count: int = -1
+
+## One save/reimport gesture can fire its signal more than once in a row - debounce so we don't
+## spawn a pile of overlapping fxv processes for it.
 const AUTO_SNAPSHOT_DEBOUNCE_SECONDS := 2.0
 var _last_auto_snapshot_time_msec: int = -1
 
@@ -110,21 +112,39 @@ func _on_import_refresh_debounce_timeout() -> void:
 
 func _on_resources_reimported_handler(paths: PackedStringArray) -> void:
 	_on_filesystem_changed()
-	# The reimport has already happened by the time this signal fires - Godot's EditorPlugin API
-	# has no pre-reimport hook - so this is a checkpoint taken immediately after a destructive
-	# batch reimport rather than a true "before" snapshot, unlike the other engines' hooks.
+	# The reimport already happened by the time this fires - Godot doesn't expose a pre-reimport
+	# hook - so this is a checkpoint taken right after a big batch reimport, not a true "before".
 	if paths.size() >= BULK_REIMPORT_SNAPSHOT_THRESHOLD:
 		_trigger_auto_snapshot("Auto-snapshot after bulk reimport (%d files)" % paths.size())
 
-## Called by the editor as part of every scene/project save so plugins can persist their own
-## external data. There's no dedicated pre-save signal exposed to EditorPlugin, so this is the
-## closest available hook to "a save is happening right now" for a generic safety checkpoint.
+## The editor calls this as part of saving a scene. It's not a true pre-save hook (Godot doesn't
+## expose one to plugins), but it's close enough, and it's the only save-adjacent signal we get.
 func _save_external_data() -> void:
-	if FxvSettings.is_in_flexvault_repository():
-		var scene_root := EditorInterface.get_edited_scene_root()
-		var scene_name := scene_root.scene_file_path.get_file() if scene_root != null else ""
-		var description := "Auto-snapshot before scene save (%s)" % scene_name if not scene_name.is_empty() else "Auto-snapshot before scene save"
-		_trigger_auto_snapshot(description)
+	if not FxvSettings.is_in_flexvault_repository():
+		return
+
+	var scene_root := EditorInterface.get_edited_scene_root()
+	if scene_root == null:
+		return
+
+	var current_count := _count_nodes(scene_root)
+	if _last_known_node_count < 0:
+		_last_known_node_count = current_count
+		return
+
+	var delta := abs(current_count - _last_known_node_count)
+	_last_known_node_count = current_count
+	if delta < NODE_COUNT_DELTA_THRESHOLD:
+		return
+
+	var scene_name := scene_root.scene_file_path.get_file()
+	_trigger_auto_snapshot("Auto-snapshot before scene save (%s, %d nodes changed)" % [scene_name, delta])
+
+func _count_nodes(node: Node) -> int:
+	var count := 1
+	for child in node.get_children():
+		count += _count_nodes(child)
+	return count
 
 func _trigger_auto_snapshot(description: String) -> void:
 	var now_msec := Time.get_ticks_msec()
@@ -132,7 +152,7 @@ func _trigger_auto_snapshot(description: String) -> void:
 		return
 	_last_auto_snapshot_time_msec = now_msec
 
-	# Fire-and-forget: best-effort safety checkpoint, never blocks the editor operation it guards.
+	# Fire-and-forget - best-effort, never blocks the editor operation it's guarding.
 	FxvRunner.snapshot_async(description, Callable())
 
 
