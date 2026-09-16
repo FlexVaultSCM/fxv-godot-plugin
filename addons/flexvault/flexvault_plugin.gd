@@ -31,6 +31,11 @@ var _last_auto_snapshot_time_msec: int = -1
 ## transient "Draft branch head commit ... not found in workspace" status error when a
 ## reimport-triggered snapshot and a scene-save-triggered snapshot landed close together.
 var _snapshot_in_flight: bool = false
+## Safety net in case snapshot_async's callback is never delivered (e.g. the background Thread
+## never reaches its deferred call) - without this, a single stuck response would leave
+## _snapshot_in_flight true forever and silently disable every future auto-snapshot trigger.
+const SNAPSHOT_WATCHDOG_SECONDS := 120.0
+var _snapshot_watchdog_timer: Timer
 
 ## Fallback checkpoint for entropy that none of the targeted hooks catch (e.g. editing
 ## resource properties directly in the Inspector). Only fires while there are pending changes;
@@ -95,6 +100,12 @@ func _enter_tree() -> void:
 	# editor open; wait a full interval first like any other periodic tick.
 	_last_periodic_snapshot_time_msec = Time.get_ticks_msec()
 
+	_snapshot_watchdog_timer = Timer.new()
+	_snapshot_watchdog_timer.wait_time = SNAPSHOT_WATCHDOG_SECONDS
+	_snapshot_watchdog_timer.one_shot = true
+	_snapshot_watchdog_timer.timeout.connect(_on_snapshot_watchdog_timeout)
+	add_child(_snapshot_watchdog_timer)
+
 	# Initial version check and refresh
 	if FxvSettings.is_in_flexvault_repository():
 		FxvRunner.ensure_version_checked()
@@ -120,6 +131,9 @@ func _exit_tree() -> void:
 
 	if _periodic_snapshot_timer != null:
 		_periodic_snapshot_timer.queue_free()
+
+	if _snapshot_watchdog_timer != null:
+		_snapshot_watchdog_timer.queue_free()
 
 	var resource_fs := EditorInterface.get_resource_filesystem()
 	if resource_fs.filesystem_changed.is_connected(_on_filesystem_changed):
@@ -188,12 +202,15 @@ func _save_external_data() -> void:
 		_last_known_node_counts[scene_path] = current_count
 		return
 
-	var previous_count: int = _last_known_node_counts[scene_path]
-	var delta := abs(current_count - previous_count)
-	_last_known_node_counts[scene_path] = current_count
+	var baseline_count: int = _last_known_node_counts[scene_path]
+	var delta := abs(current_count - baseline_count)
 	if delta < NODE_COUNT_DELTA_THRESHOLD:
+		# Don't advance the baseline here - a run of small saves (e.g. 9 nodes deleted, then 9
+		# more) should accumulate toward the next delta instead of each save silently resetting
+		# what "since the last save" means and losing the count that came before it.
 		return
 
+	_last_known_node_counts[scene_path] = current_count
 	var scene_name := scene_path.get_file()
 	_trigger_auto_snapshot("Auto-snapshot before scene save (%s, %d nodes changed)" % [scene_name, delta])
 
@@ -216,8 +233,6 @@ func _on_folder_removed(folder: String) -> void:
 	_trigger_auto_snapshot("Auto-snapshot after folder deleted (%s)" % folder.get_file())
 
 func _on_periodic_snapshot_timer_timeout() -> void:
-	if _snapshot_in_flight:
-		return
 	if not FxvSettings.is_in_flexvault_repository():
 		return
 
@@ -232,37 +247,45 @@ func _on_periodic_snapshot_timer_timeout() -> void:
 	if _state_cache.get_changed_files().is_empty():
 		return
 
-	_snapshot_in_flight = true
-	FxvRunner.snapshot_async("Auto-snapshot (periodic, pending changes)", func(res: FxvRunner.FxvResult) -> void:
-		_snapshot_in_flight = false
-		if res.success:
-			# Only mark done on success - a failed attempt retries on the next check tick
-			# instead of waiting out the full interval again.
-			_last_periodic_snapshot_time_msec = Time.get_ticks_msec()
-			print("[FlexVault] Auto-snapshot fired: periodic pending-changes checkpoint")
-		else:
-			push_warning("[FlexVault] Periodic auto-snapshot failed: " + res.error_message)
+	# Only mark done on success - a failed attempt retries on the next check tick instead of
+	# waiting out the full interval again.
+	_trigger_auto_snapshot("Auto-snapshot (periodic, pending changes)", func() -> void:
+		_last_periodic_snapshot_time_msec = Time.get_ticks_msec()
 	)
 
-func _trigger_auto_snapshot(description: String) -> void:
+## Fires an `fxv snapshot`, guarded by the shared debounce and in-flight checks so every
+## trigger (targeted or periodic) goes through one place. `on_success` (if given) runs only
+## when the CLI call actually succeeds - used by the periodic trigger to advance its own
+## retry-on-failure timestamp.
+func _trigger_auto_snapshot(description: String, on_success: Callable = Callable()) -> void:
 	var now_msec := Time.get_ticks_msec()
 	if _last_auto_snapshot_time_msec >= 0 and (now_msec - _last_auto_snapshot_time_msec) < int(AUTO_SNAPSHOT_DEBOUNCE_SECONDS * 1000.0):
 		return
 	if _snapshot_in_flight:
-		# Another auto-snapshot is still running (targeted or periodic) - skip this one rather
-		# than run two `fxv snapshot` processes concurrently against the same workspace. Same
-		# best-effort spirit as the debounce above.
+		# Another auto-snapshot is still running - skip this one rather than run two
+		# `fxv snapshot` processes concurrently against the same workspace. Same best-effort
+		# spirit as the debounce above.
 		return
 	_last_auto_snapshot_time_msec = now_msec
 	_snapshot_in_flight = true
+	_snapshot_watchdog_timer.start()
 
 	print("[FlexVault] Auto-snapshot fired: %s" % description)
 	# Fire-and-forget - best-effort, never blocks the editor operation it's guarding.
 	FxvRunner.snapshot_async(description, func(res: FxvRunner.FxvResult) -> void:
+		_snapshot_watchdog_timer.stop()
 		_snapshot_in_flight = false
-		if not res.success:
+		if res.success:
+			if on_success.is_valid():
+				on_success.call()
+		else:
 			push_warning("[FlexVault] Auto-snapshot failed: " + res.error_message)
 	)
+
+func _on_snapshot_watchdog_timeout() -> void:
+	if _snapshot_in_flight:
+		push_warning("[FlexVault] Auto-snapshot response never arrived after %.0fs - resetting so future auto-snapshots aren't blocked." % SNAPSHOT_WATCHDOG_SECONDS)
+		_snapshot_in_flight = false
 
 
 func _on_menu_refresh() -> void:
