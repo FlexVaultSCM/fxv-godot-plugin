@@ -13,7 +13,6 @@ var _history_view: VBoxContainer
 # Changes controls
 var _changes_tree: Tree
 var _commit_msg_edit: TextEdit
-var _snapshot_btn: Button
 var _publish_btn: Button
 var _revert_btn: Button
 var _diff_btn: Button
@@ -180,17 +179,12 @@ func _build_ui() -> void:
 	commit_panel.add_child(desc_lbl)
 
 	_commit_msg_edit = TextEdit.new()
-	_commit_msg_edit.placeholder_text = "Enter draft snapshot or publish description..."
+	_commit_msg_edit.placeholder_text = "Enter publish description..."
 	_commit_msg_edit.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	commit_panel.add_child(_commit_msg_edit)
 
 	var commit_btn_row := HBoxContainer.new()
 	commit_panel.add_child(commit_btn_row)
-
-	_snapshot_btn = Button.new()
-	_snapshot_btn.text = "Snapshot"
-	_snapshot_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	commit_btn_row.add_child(_snapshot_btn)
 
 	_publish_btn = Button.new()
 	_publish_btn.text = "Publish"
@@ -265,7 +259,6 @@ func _build_ui() -> void:
 	details_actions.add_child(_history_diff_previous_btn)
 
 func _connect_signals() -> void:
-	_snapshot_btn.pressed.connect(_on_snapshot_pressed)
 	_publish_btn.pressed.connect(_on_publish_pressed)
 	_sync_btn.pressed.connect(_on_sync_pressed)
 	_revert_btn.pressed.connect(_on_revert_pressed)
@@ -394,7 +387,6 @@ func _get_previous_history_revision() -> String:
 
 func _set_busy(busy: bool) -> void:
 	_busy = busy
-	_snapshot_btn.disabled = busy
 	_publish_btn.disabled = busy
 	_sync_btn.disabled = busy
 	_resolve_mine_btn.disabled = busy
@@ -426,30 +418,15 @@ func _get_selected_paths() -> Array:
 		item = _changes_tree.get_next_selected(item)
 	return paths
 
-func _on_snapshot_pressed() -> void:
-	if not FxvSafetyGuards.ensure_safe_to_mutate("Snapshot"):
-		return
-	var desc := _commit_msg_edit.text.strip_edges()
-	_status_label.text = "Taking snapshot..."
-	_set_busy(true)
-	FxvRunner.snapshot_async(desc, func(res: FxvRunner.FxvResult) -> void:
-		_set_busy(false)
-		if res.success:
-			_commit_msg_edit.text = ""
-			_status_label.text = "Snapshot taken successfully."
-			request_refresh.emit()
-		else:
-			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
-			_status_label.text = "Snapshot failed: %s" % reason
-			push_error("[FlexVault] Snapshot failed: " + res.error_message)
-	)
-
-## Publish snapshots the workspace first, then publishes the resulting draft, matching the
-## Unreal and Unity plugins (both combine the two into one "Publish"/"Check In" action with a
-## shared description). `fxv publish` only publishes already-committed draft snapshots, not
-## raw workspace edits, so a bare publish call would silently no-op on a dirty-but-unsnapshotted
-## workspace. Login is checked before snapshotting (not just before publishing) so a logged-out
-## user doesn't end up with a local snapshot and a failed publish.
+## Publish snapshots the workspace first, then publishes the resulting draft. Manual snapshotting
+## is intentionally not exposed in the UI - the plugin takes snapshots automatically on
+## high-entropy editor operations (see FlexVaultPlugin's auto-snapshot triggers), and Publish is
+## the only user-facing action that commits a workspace snapshot, matching the Unreal and Unity
+## plugins (both combine the two into one "Publish"/"Check In" action with a shared description).
+## `fxv publish` only publishes already-committed draft snapshots, not raw workspace edits, so a
+## bare publish call would silently no-op on a dirty-but-unsnapshotted workspace. Login is checked
+## before snapshotting (not just before publishing) so a logged-out user doesn't end up with a
+## local snapshot and a failed publish.
 func _on_publish_pressed() -> void:
 	if not FxvSafetyGuards.ensure_safe_to_mutate("Publish"):
 		return
