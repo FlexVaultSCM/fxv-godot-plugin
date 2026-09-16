@@ -9,6 +9,17 @@ var _auto_refresh_timer: Timer
 var _import_refresh_debounce: Timer
 var _on_resources_reimported: Callable
 
+## Reimporting this many files or more in one batch (project-wide reimport, a bulk import
+## settings change, etc.) is high-entropy enough to be worth an automatic checkpoint; an
+## ordinary single-file or few-file reimport is not.
+const BULK_REIMPORT_SNAPSHOT_THRESHOLD := 15
+
+## Separate from the status-refresh debounce above: a single save/reimport gesture can still
+## fire its underlying signal more than once in quick succession, so gate snapshots on their
+## own cooldown to avoid spawning overlapping `fxv snapshot` processes.
+const AUTO_SNAPSHOT_DEBOUNCE_SECONDS := 2.0
+var _last_auto_snapshot_time_msec: int = -1
+
 func _enter_tree() -> void:
 	FxvSettings.register_settings()
 	_state_cache = FxvStateCache.get_instance()
@@ -41,7 +52,7 @@ func _enter_tree() -> void:
 	_import_refresh_debounce.timeout.connect(_on_import_refresh_debounce_timeout)
 	add_child(_import_refresh_debounce)
 
-	_on_resources_reimported = func(_paths: PackedStringArray): _on_filesystem_changed()
+	_on_resources_reimported = func(paths: PackedStringArray): _on_resources_reimported_handler(paths)
 	var resource_fs := EditorInterface.get_resource_filesystem()
 	resource_fs.filesystem_changed.connect(_on_filesystem_changed)
 	resource_fs.resources_reimported.connect(_on_resources_reimported)
@@ -96,6 +107,33 @@ func _on_filesystem_changed() -> void:
 func _on_import_refresh_debounce_timeout() -> void:
 	if FxvSettings.is_auto_refresh_enabled() and FxvSettings.is_in_flexvault_repository():
 		_state_cache.refresh(true, false)
+
+func _on_resources_reimported_handler(paths: PackedStringArray) -> void:
+	_on_filesystem_changed()
+	# The reimport has already happened by the time this signal fires - Godot's EditorPlugin API
+	# has no pre-reimport hook - so this is a checkpoint taken immediately after a destructive
+	# batch reimport rather than a true "before" snapshot, unlike the other engines' hooks.
+	if paths.size() >= BULK_REIMPORT_SNAPSHOT_THRESHOLD:
+		_trigger_auto_snapshot("Auto-snapshot after bulk reimport (%d files)" % paths.size())
+
+## Called by the editor as part of every scene/project save so plugins can persist their own
+## external data. There's no dedicated pre-save signal exposed to EditorPlugin, so this is the
+## closest available hook to "a save is happening right now" for a generic safety checkpoint.
+func _save_external_data() -> void:
+	if FxvSettings.is_in_flexvault_repository():
+		var scene_root := EditorInterface.get_edited_scene_root()
+		var scene_name := scene_root.scene_file_path.get_file() if scene_root != null else ""
+		var description := "Auto-snapshot before scene save (%s)" % scene_name if not scene_name.is_empty() else "Auto-snapshot before scene save"
+		_trigger_auto_snapshot(description)
+
+func _trigger_auto_snapshot(description: String) -> void:
+	var now_msec := Time.get_ticks_msec()
+	if _last_auto_snapshot_time_msec >= 0 and (now_msec - _last_auto_snapshot_time_msec) < int(AUTO_SNAPSHOT_DEBOUNCE_SECONDS * 1000.0):
+		return
+	_last_auto_snapshot_time_msec = now_msec
+
+	# Fire-and-forget: best-effort safety checkpoint, never blocks the editor operation it guards.
+	FxvRunner.snapshot_async(description, Callable())
 
 
 func _on_menu_refresh() -> void:
