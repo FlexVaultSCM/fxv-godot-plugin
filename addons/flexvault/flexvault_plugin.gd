@@ -13,14 +13,25 @@ var _on_resources_reimported: Callable
 const BULK_REIMPORT_SNAPSHOT_THRESHOLD := 15
 
 ## Same idea for scene saves: only snapshot if the node count changed by a lot since the last
-## save (bulk delete/instantiate), not on every Ctrl+S.
+## save (bulk delete/instantiate), not on every Ctrl+S. Keyed per scene path rather than a
+## single scalar, since Godot commonly has several scenes open in tabs and saves them
+## independently - comparing scene A's node count against scene B's last-seen count would
+## produce a bogus delta.
 const NODE_COUNT_DELTA_THRESHOLD := 10
-var _last_known_node_count: int = -1
+var _last_known_node_counts: Dictionary = {} # scene_file_path (String) -> node count (int)
 
-## One save/reimport gesture can fire its signal more than once in a row - debounce so we don't
-## spawn a pile of overlapping fxv processes for it.
+## One save/reimport/delete gesture can fire its signal more than once in a row - debounce so
+## we don't spawn a pile of overlapping fxv processes for it.
 const AUTO_SNAPSHOT_DEBOUNCE_SECONDS := 2.0
 var _last_auto_snapshot_time_msec: int = -1
+
+## Fallback checkpoint for entropy that none of the targeted hooks catch (e.g. editing
+## resource properties directly in the Inspector). Only fires while there are pending changes;
+## see FxvSettings.get_periodic_snapshot_seconds() (0 disables it).
+const PERIODIC_SNAPSHOT_CHECK_INTERVAL_SECONDS := 30.0
+var _periodic_snapshot_timer: Timer
+var _periodic_snapshot_in_flight: bool = false
+var _last_periodic_snapshot_time_msec: int = -1
 
 func _enter_tree() -> void:
 	FxvSettings.register_settings()
@@ -59,6 +70,25 @@ func _enter_tree() -> void:
 	resource_fs.filesystem_changed.connect(_on_filesystem_changed)
 	resource_fs.resources_reimported.connect(_on_resources_reimported)
 
+	# Deletions don't go through the undo stack, so they're worth an unconditional checkpoint
+	# regardless of how many files are removed at once (unlike reimports, there's no small-batch
+	# case that isn't worth it).
+	var file_system_dock := EditorInterface.get_file_system_dock()
+	file_system_dock.file_removed.connect(_on_file_removed)
+	file_system_dock.folder_removed.connect(_on_folder_removed)
+
+	# Fallback checkpoint: periodically snapshot if there are pending changes none of the
+	# targeted hooks above caught (e.g. Inspector-only edits to a resource).
+	_periodic_snapshot_timer = Timer.new()
+	_periodic_snapshot_timer.wait_time = PERIODIC_SNAPSHOT_CHECK_INTERVAL_SECONDS
+	_periodic_snapshot_timer.autostart = true
+	_periodic_snapshot_timer.one_shot = false
+	_periodic_snapshot_timer.timeout.connect(_on_periodic_snapshot_timer_timeout)
+	add_child(_periodic_snapshot_timer)
+	# Baseline so a workspace with existing pending changes doesn't snapshot immediately on
+	# editor open; wait a full interval first like any other periodic tick.
+	_last_periodic_snapshot_time_msec = Time.get_ticks_msec()
+
 	# Initial version check and refresh
 	if FxvSettings.is_in_flexvault_repository():
 		FxvRunner.ensure_version_checked()
@@ -82,11 +112,20 @@ func _exit_tree() -> void:
 	if _import_refresh_debounce != null:
 		_import_refresh_debounce.queue_free()
 
+	if _periodic_snapshot_timer != null:
+		_periodic_snapshot_timer.queue_free()
+
 	var resource_fs := EditorInterface.get_resource_filesystem()
 	if resource_fs.filesystem_changed.is_connected(_on_filesystem_changed):
 		resource_fs.filesystem_changed.disconnect(_on_filesystem_changed)
 	if _on_resources_reimported.is_valid() and resource_fs.resources_reimported.is_connected(_on_resources_reimported):
 		resource_fs.resources_reimported.disconnect(_on_resources_reimported)
+
+	var file_system_dock := EditorInterface.get_file_system_dock()
+	if file_system_dock.file_removed.is_connected(_on_file_removed):
+		file_system_dock.file_removed.disconnect(_on_file_removed)
+	if file_system_dock.folder_removed.is_connected(_on_folder_removed):
+		file_system_dock.folder_removed.disconnect(_on_folder_removed)
 
 	if _state_cache != null:
 		_state_cache.clear()
@@ -127,17 +166,22 @@ func _save_external_data() -> void:
 	if scene_root == null:
 		return
 
-	var current_count := _count_nodes(scene_root)
-	if _last_known_node_count < 0:
-		_last_known_node_count = current_count
+	var scene_path := scene_root.scene_file_path
+	if scene_path.is_empty():
 		return
 
-	var delta := abs(current_count - _last_known_node_count)
-	_last_known_node_count = current_count
+	var current_count := _count_nodes(scene_root)
+	if not _last_known_node_counts.has(scene_path):
+		_last_known_node_counts[scene_path] = current_count
+		return
+
+	var previous_count: int = _last_known_node_counts[scene_path]
+	var delta := abs(current_count - previous_count)
+	_last_known_node_counts[scene_path] = current_count
 	if delta < NODE_COUNT_DELTA_THRESHOLD:
 		return
 
-	var scene_name := scene_root.scene_file_path.get_file()
+	var scene_name := scene_path.get_file()
 	_trigger_auto_snapshot("Auto-snapshot before scene save (%s, %d nodes changed)" % [scene_name, delta])
 
 func _count_nodes(node: Node) -> int:
@@ -146,12 +190,54 @@ func _count_nodes(node: Node) -> int:
 		count += _count_nodes(child)
 	return count
 
+## Deletions are non-undoable regardless of batch size, so unlike reimport there's no
+## small-batch case that isn't worth a checkpoint.
+func _on_file_removed(file: String) -> void:
+	if not FxvSettings.is_in_flexvault_repository():
+		return
+	_trigger_auto_snapshot("Auto-snapshot after file deleted (%s)" % file.get_file())
+
+func _on_folder_removed(folder: String) -> void:
+	if not FxvSettings.is_in_flexvault_repository():
+		return
+	_trigger_auto_snapshot("Auto-snapshot after folder deleted (%s)" % folder.get_file())
+
+func _on_periodic_snapshot_timer_timeout() -> void:
+	if _periodic_snapshot_in_flight:
+		return
+	if not FxvSettings.is_in_flexvault_repository():
+		return
+
+	var interval_sec := FxvSettings.get_periodic_snapshot_seconds()
+	if interval_sec <= 0.0:
+		return
+
+	var now_msec := Time.get_ticks_msec()
+	if _last_periodic_snapshot_time_msec >= 0 and (now_msec - _last_periodic_snapshot_time_msec) < int(interval_sec * 1000.0):
+		return
+
+	if _state_cache.get_changed_files().is_empty():
+		return
+
+	_periodic_snapshot_in_flight = true
+	FxvRunner.snapshot_async("Auto-snapshot (periodic, pending changes)", func(res: FxvRunner.FxvResult) -> void:
+		_periodic_snapshot_in_flight = false
+		if res.success:
+			# Only mark done on success - a failed attempt retries on the next check tick
+			# instead of waiting out the full interval again.
+			_last_periodic_snapshot_time_msec = Time.get_ticks_msec()
+			print("[FlexVault] Auto-snapshot fired: periodic pending-changes checkpoint")
+		else:
+			push_warning("[FlexVault] Periodic auto-snapshot failed: " + res.error_message)
+	)
+
 func _trigger_auto_snapshot(description: String) -> void:
 	var now_msec := Time.get_ticks_msec()
 	if _last_auto_snapshot_time_msec >= 0 and (now_msec - _last_auto_snapshot_time_msec) < int(AUTO_SNAPSHOT_DEBOUNCE_SECONDS * 1000.0):
 		return
 	_last_auto_snapshot_time_msec = now_msec
 
+	print("[FlexVault] Auto-snapshot fired: %s" % description)
 	# Fire-and-forget - best-effort, never blocks the editor operation it's guarding.
 	FxvRunner.snapshot_async(description, Callable())
 
