@@ -36,6 +36,11 @@ var _snapshot_in_flight: bool = false
 ## _snapshot_in_flight true forever and silently disable every future auto-snapshot trigger.
 const SNAPSHOT_WATCHDOG_SECONDS := 120.0
 var _snapshot_watchdog_timer: Timer
+## Bumped on every attempt so a callback (or the watchdog) from a superseded attempt can tell
+## it's stale and not clobber the state of whatever attempt is actually running now - e.g. the
+## watchdog fires and clears _snapshot_in_flight, a new auto-snapshot starts, and only then the
+## original (timed-out) snapshot_async call finally delivers its callback.
+var _snapshot_attempt_id: int = 0
 
 ## Fallback checkpoint for entropy that none of the targeted hooks catch (e.g. editing
 ## resource properties directly in the Inspector). Only fires while there are pending changes;
@@ -185,6 +190,14 @@ func _on_resources_reimported_handler(paths: PackedStringArray) -> void:
 
 ## The editor calls this as part of saving a scene. It's not a true pre-save hook (Godot doesn't
 ## expose one to plugins), but it's close enough, and it's the only save-adjacent signal we get.
+##
+## Known limitation: this reads get_edited_scene_root() - the focused scene tab - not
+## necessarily the scene that was actually just written to disk. A single Ctrl+S always matches
+## (the focused scene is the one being saved), but EditorInterface.save_all_scenes() can write a
+## background tab while a different scene is focused, in which case this checks the wrong
+## scene's node count against its baseline. There's no public API to identify which scene a
+## given _save_external_data() call corresponds to, nor to read a non-focused open scene's node
+## tree, so this can't be fully fixed - only the common single-scene-save case is covered.
 func _save_external_data() -> void:
 	if not FxvSettings.is_in_flexvault_repository():
 		return
@@ -268,11 +281,17 @@ func _trigger_auto_snapshot(description: String, on_success: Callable = Callable
 		return
 	_last_auto_snapshot_time_msec = now_msec
 	_snapshot_in_flight = true
+	_snapshot_attempt_id += 1
+	var this_attempt_id := _snapshot_attempt_id
 	_snapshot_watchdog_timer.start()
 
 	print("[FlexVault] Auto-snapshot fired: %s" % description)
 	# Fire-and-forget - best-effort, never blocks the editor operation it's guarding.
 	FxvRunner.snapshot_async(description, func(res: FxvRunner.FxvResult) -> void:
+		if this_attempt_id != _snapshot_attempt_id:
+			# A later attempt has already started (the watchdog gave up on this one and let a
+			# new one through) - this callback is stale, don't touch state that belongs to it.
+			return
 		_snapshot_watchdog_timer.stop()
 		_snapshot_in_flight = false
 		if res.success:
