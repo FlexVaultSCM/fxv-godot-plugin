@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## [0.5.0](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.4.0...v0.5.0) (2026-09-16)
+
+
+### Features
+
+* Add auto-snapshot hooks for high-entropy editor operations ([#8](https://github.com/FlexVaultSCM/fxv-godot-plugin/issues/8)) ([bafa876](https://github.com/FlexVaultSCM/fxv-godot-plugin/commit/bafa876d6e90379d03ac0b640a426f2425ee0e27))
+* prompt to exclude .godot/ from .fxvignore on startup ([#7](https://github.com/FlexVaultSCM/fxv-godot-plugin/issues/7)) ([d2a54de](https://github.com/FlexVaultSCM/fxv-godot-plugin/commit/d2a54debbadd876e4018ccdf296aaa241e24407e))
+
 ## [0.4.0](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.3.0...v0.4.0) (2026-09-15)
 
 
