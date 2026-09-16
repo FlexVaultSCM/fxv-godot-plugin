@@ -41,8 +41,8 @@ Settings can be customized in **Editor -> Editor Settings -> Version Control -> 
 
 * **Dockable Bottom Panel ("FlexVault")**:
   * **Changes View**: Displays all modified, added, deleted, and conflicted files with color-coded status badges and file sizes.
-  * **Draft Snapshotting**: Create local checkpoints (`fxv snapshot`) with a description without publishing to remote.
-  * **Publishing**: Publish your local draft changes to the central repository (`fxv publish`).
+  * **Automatic Snapshotting**: Local checkpoints (`fxv snapshot`) are taken automatically on high-entropy editor operations (bulk reimports, large scene edits, file/folder deletions) and periodically while changes are pending, so there's nothing manual to remember.
+  * **Publishing**: Publish your local draft changes to the central repository (`fxv publish`); Publish also takes a final snapshot first, so it always captures the current workspace state.
   * **Revert**: Revert selected files and their companion Godot `.import` and `.uid` metadata files back to their published base state.
   * **Diff Support**: Diff modified files against their published or local snapshot base revision in an external visual diff viewer.
   * **Conflict Resolution**: Inline `[Resolve (Mine)]` and `[Resolve (Theirs)]` actions for merge conflict resolution.
