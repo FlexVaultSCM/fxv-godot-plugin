@@ -25,12 +25,18 @@ var _last_known_node_counts: Dictionary = {} # scene_file_path (String) -> node 
 const AUTO_SNAPSHOT_DEBOUNCE_SECONDS := 2.0
 var _last_auto_snapshot_time_msec: int = -1
 
+## Shared across every trigger (targeted and periodic alike): skip firing a new auto-snapshot
+## while one is still running rather than let two `fxv snapshot` processes race the CLI's
+## draft-branch head update against the same workspace - observed live in testing as a
+## transient "Draft branch head commit ... not found in workspace" status error when a
+## reimport-triggered snapshot and a scene-save-triggered snapshot landed close together.
+var _snapshot_in_flight: bool = false
+
 ## Fallback checkpoint for entropy that none of the targeted hooks catch (e.g. editing
 ## resource properties directly in the Inspector). Only fires while there are pending changes;
 ## see FxvSettings.get_periodic_snapshot_seconds() (0 disables it).
 const PERIODIC_SNAPSHOT_CHECK_INTERVAL_SECONDS := 30.0
 var _periodic_snapshot_timer: Timer
-var _periodic_snapshot_in_flight: bool = false
 var _last_periodic_snapshot_time_msec: int = -1
 
 func _enter_tree() -> void:
@@ -138,6 +144,11 @@ func _on_request_refresh() -> void:
 	_state_cache.refresh()
 
 func _on_timer_refresh() -> void:
+	# Skip this tick rather than poll status while a snapshot is still writing its draft-branch
+	# head - reading concurrently can observe a transient "commit not found" error. The next
+	# 10s tick (or the refresh right after the snapshot's own filesystem_changed) picks it up.
+	if _snapshot_in_flight:
+		return
 	if FxvSettings.is_auto_refresh_enabled() and FxvSettings.is_in_flexvault_repository():
 		_state_cache.refresh(true, false) # skip remote metadata check on periodic poll, keep disk scan enabled
 
@@ -146,6 +157,8 @@ func _on_filesystem_changed() -> void:
 		_import_refresh_debounce.start()
 
 func _on_import_refresh_debounce_timeout() -> void:
+	if _snapshot_in_flight:
+		return
 	if FxvSettings.is_auto_refresh_enabled() and FxvSettings.is_in_flexvault_repository():
 		_state_cache.refresh(true, false)
 
@@ -203,7 +216,7 @@ func _on_folder_removed(folder: String) -> void:
 	_trigger_auto_snapshot("Auto-snapshot after folder deleted (%s)" % folder.get_file())
 
 func _on_periodic_snapshot_timer_timeout() -> void:
-	if _periodic_snapshot_in_flight:
+	if _snapshot_in_flight:
 		return
 	if not FxvSettings.is_in_flexvault_repository():
 		return
@@ -219,9 +232,9 @@ func _on_periodic_snapshot_timer_timeout() -> void:
 	if _state_cache.get_changed_files().is_empty():
 		return
 
-	_periodic_snapshot_in_flight = true
+	_snapshot_in_flight = true
 	FxvRunner.snapshot_async("Auto-snapshot (periodic, pending changes)", func(res: FxvRunner.FxvResult) -> void:
-		_periodic_snapshot_in_flight = false
+		_snapshot_in_flight = false
 		if res.success:
 			# Only mark done on success - a failed attempt retries on the next check tick
 			# instead of waiting out the full interval again.
@@ -235,11 +248,21 @@ func _trigger_auto_snapshot(description: String) -> void:
 	var now_msec := Time.get_ticks_msec()
 	if _last_auto_snapshot_time_msec >= 0 and (now_msec - _last_auto_snapshot_time_msec) < int(AUTO_SNAPSHOT_DEBOUNCE_SECONDS * 1000.0):
 		return
+	if _snapshot_in_flight:
+		# Another auto-snapshot is still running (targeted or periodic) - skip this one rather
+		# than run two `fxv snapshot` processes concurrently against the same workspace. Same
+		# best-effort spirit as the debounce above.
+		return
 	_last_auto_snapshot_time_msec = now_msec
+	_snapshot_in_flight = true
 
 	print("[FlexVault] Auto-snapshot fired: %s" % description)
 	# Fire-and-forget - best-effort, never blocks the editor operation it's guarding.
-	FxvRunner.snapshot_async(description, Callable())
+	FxvRunner.snapshot_async(description, func(res: FxvRunner.FxvResult) -> void:
+		_snapshot_in_flight = false
+		if not res.success:
+			push_warning("[FlexVault] Auto-snapshot failed: " + res.error_message)
+	)
 
 
 func _on_menu_refresh() -> void:
