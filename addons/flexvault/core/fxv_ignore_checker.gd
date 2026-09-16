@@ -50,16 +50,16 @@ static func check_and_prompt_on_startup() -> void:
 
 static func _get_missing_entries(repo_root: String) -> Array:
 	var fxvignore_path := repo_root.path_join(".fxvignore")
+	var lines: Dictionary = FxvContextMenu._read_lines(fxvignore_path).lines
+
 	var existing := {}
+	for line in lines.keys():
+		if not str(line).begins_with("#"):
+			existing[_normalize_entry(line)] = true
 
-	if FileAccess.file_exists(fxvignore_path):
-		var reader := FileAccess.open(fxvignore_path, FileAccess.READ)
-		if reader != null:
-			var content := reader.get_as_text()
-			reader.close()
-			for line in content.split("\n"):
-				var trimmed := line.strip_edges()
-				if not trimmed.is_empty() and not trimmed.begins_with("#"):
-					existing[trimmed] = true
+	return DEFAULT_IGNORES.filter(func(entry): return not existing.has(_normalize_entry(entry)))
 
-	return DEFAULT_IGNORES.filter(func(entry): return not existing.has(entry))
+
+# ".godot", ".godot/", ".godot/*" all normalize to ".godot".
+static func _normalize_entry(entry: String) -> String:
+	return entry.trim_suffix("/*").trim_suffix("/")

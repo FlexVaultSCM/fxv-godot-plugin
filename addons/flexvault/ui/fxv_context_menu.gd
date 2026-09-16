@@ -146,19 +146,27 @@ static func _on_ignore() -> void:
 	)
 
 
-## Appends any lines not already present in the file. Returns how many were added.
-static func _append_unique_lines(file_path: String, lines: Array) -> int:
-	var existing := {}
-	var needs_leading_newline := false
-
+## Reads file_path and returns its raw content plus a set of its stripped, non-empty lines.
+static func _read_lines(file_path: String) -> Dictionary:
+	var result := {"content": "", "lines": {}}
 	if FileAccess.file_exists(file_path):
 		var reader := FileAccess.open(file_path, FileAccess.READ)
 		if reader != null:
 			var content := reader.get_as_text()
 			reader.close()
+			result.content = content
 			for line in content.split("\n"):
-				existing[line.strip_edges()] = true
-			needs_leading_newline = not content.is_empty() and not content.ends_with("\n")
+				var trimmed := line.strip_edges()
+				if not trimmed.is_empty():
+					result.lines[trimmed] = true
+	return result
+
+
+## Appends any lines not already present in the file. Returns how many were added.
+static func _append_unique_lines(file_path: String, lines: Array) -> int:
+	var file := _read_lines(file_path)
+	var existing: Dictionary = file.lines
+	var needs_leading_newline: bool = not file.content.is_empty() and not file.content.ends_with("\n")
 
 	var to_add: Array = []
 	for line in lines:
