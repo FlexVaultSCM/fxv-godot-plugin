@@ -50,6 +50,7 @@ func _enter_tree() -> void:
 	if FxvSettings.is_in_flexvault_repository():
 		FxvRunner.ensure_version_checked()
 		_state_cache.refresh()
+		FxvIgnoreChecker.check_and_prompt_on_startup()
 
 func _exit_tree() -> void:
 	remove_tool_menu_item("FlexVault: Refresh Status")
