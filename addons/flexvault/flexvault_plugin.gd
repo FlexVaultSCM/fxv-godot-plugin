@@ -50,6 +50,11 @@ var _periodic_snapshot_timer: Timer
 var _last_periodic_snapshot_time_msec: int = -1
 
 func _enter_tree() -> void:
+	# Must run before anything below that could trigger an auto-snapshot (timers, filesystem/
+	# reimport signals) - once a path is captured into a snapshot, adding it to .fxvignore no
+	# longer removes it from tracking, so the default ignores have to land first.
+	FxvIgnoreChecker.ensure_default_ignores()
+
 	FxvSettings.register_settings()
 	_state_cache = FxvStateCache.get_instance()
 
@@ -115,7 +120,6 @@ func _enter_tree() -> void:
 	if FxvSettings.is_in_flexvault_repository():
 		FxvRunner.ensure_version_checked()
 		_state_cache.refresh()
-		FxvIgnoreChecker.check_and_prompt_on_startup()
 
 func _exit_tree() -> void:
 	remove_tool_menu_item("FlexVault: Refresh Status")

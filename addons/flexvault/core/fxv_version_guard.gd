@@ -16,6 +16,7 @@ const MAX_PATCH: int = 0
 static var _cached_is_compatible: Variant = null
 static var _cached_version_string: String = ""
 static var _cached_error_message: String = ""
+static var _cached_plugin_version: String = ""
 
 class SemVer extends RefCounted:
 	var major: int = 0
@@ -146,3 +147,14 @@ static func get_last_version_string() -> String:
 
 static func get_last_error_message() -> String:
 	return _cached_error_message
+
+
+## Reads the plugin's own version from plugin.cfg (not the fxv CLI's), cached for the process.
+static func get_plugin_version() -> String:
+	if not _cached_plugin_version.is_empty():
+		return _cached_plugin_version
+
+	var config := ConfigFile.new()
+	if config.load("res://addons/flexvault/plugin.cfg") == OK:
+		_cached_plugin_version = str(config.get_value("plugin", "version", ""))
+	return _cached_plugin_version

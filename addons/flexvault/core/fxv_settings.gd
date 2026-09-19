@@ -30,7 +30,9 @@ static func register_settings() -> void:
 	editor_settings.add_property_info({
 		"name": SETTING_BINARY_PATH,
 		"type": TYPE_STRING,
-		"hint": PROPERTY_HINT_FILE,
+		# Global, not FILE: this points at an executable anywhere on disk, not a res:// resource.
+		# PROPERTY_HINT_FILE's picker (and manual entry) is confined to the project filesystem.
+		"hint": PROPERTY_HINT_GLOBAL_FILE,
 		"hint_string": "*.exe" if OS.get_name() == "Windows" else ""
 	})
 
@@ -39,7 +41,7 @@ static func register_settings() -> void:
 	editor_settings.add_property_info({
 		"name": SETTING_DIFF_TOOL,
 		"type": TYPE_STRING,
-		"hint": PROPERTY_HINT_FILE,
+		"hint": PROPERTY_HINT_GLOBAL_FILE,
 		"hint_string": "*.exe" if OS.get_name() == "Windows" else ""
 	})
 
