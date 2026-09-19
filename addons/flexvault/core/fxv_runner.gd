@@ -26,6 +26,7 @@ static func ensure_version_checked(custom_binary_path: String = "") -> bool:
 		FxvVersionGuard.set_incompatible("FlexVault CLI executable (fxv) could not be located.")
 		return false
 
+	_setup_client_env()
 	var output: Array = []
 	var exit_code := OS.execute(bin_path, ["--version"], output, true)
 	if exit_code == 0 and output.size() > 0:
@@ -81,6 +82,7 @@ static func run_command(
 		full_args.append("--no-color")
 
 	# Execute CLI
+	_setup_client_env()
 	var output: Array = []
 	var exit_code: int = -1
 
@@ -426,6 +428,7 @@ static func cat_to_file(repo_relative_path: String, revision: String, destinatio
 		args.append(revision)
 	args.append(repo_relative_path)
 
+	_setup_client_env()
 	var exit_code := OS.execute(bin_path, args, output, false)
 
 	if exit_code == 0 and output.size() > 0:
@@ -436,3 +439,16 @@ static func cat_to_file(repo_relative_path: String, revision: String, destinatio
 			f.close()
 			return true
 	return false
+
+
+static func _setup_client_env() -> void:
+	var plugin_ver := FxvVersionGuard.get_plugin_version()
+	if plugin_ver.is_empty():
+		plugin_ver = "0.5.0"
+	var client_val := "name=godot;version=%s;max=%d.%d.%d;min=%d.%d.%d" % [
+		plugin_ver,
+		FxvVersionGuard.MAX_MAJOR, FxvVersionGuard.MAX_MINOR, FxvVersionGuard.MAX_PATCH,
+		FxvVersionGuard.MIN_MAJOR, FxvVersionGuard.MIN_MINOR, FxvVersionGuard.MIN_PATCH
+	]
+	OS.set_environment("FXV_CLIENT", client_val)
+
