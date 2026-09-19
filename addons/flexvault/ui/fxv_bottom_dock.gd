@@ -72,7 +72,7 @@ func _build_ui() -> void:
 	toolbar.add_spacer(false)
 
 	_user_branch_label = Label.new()
-	_user_branch_label.text = "Branch: - | User: -"
+	_user_branch_label.text = "Branch: - | User: -%s" % _version_suffix()
 	toolbar.add_child(_user_branch_label)
 
 	_login_edit = LineEdit.new()
@@ -283,6 +283,20 @@ func _connect_signals() -> void:
 	var cache := FxvStateCache.get_instance()
 	cache.state_changed.connect(_on_state_changed)
 
+## " | fxv <cli version> / plugin <plugin version>", omitting either half that isn't known yet
+## (CLI version check hasn't completed, or plugin.cfg couldn't be read).
+func _version_suffix() -> String:
+	var cli_version := FxvVersionGuard.get_last_version_string()
+	var plugin_version := FxvVersionGuard.get_plugin_version()
+	if cli_version.is_empty() and plugin_version.is_empty():
+		return ""
+	var parts: Array[String] = []
+	if not cli_version.is_empty():
+		parts.append("fxv %s" % cli_version)
+	if not plugin_version.is_empty():
+		parts.append("plugin %s" % plugin_version)
+	return " | %s" % " / ".join(parts)
+
 func _on_tab_changed(tab_idx: int) -> void:
 	if tab_idx == 1: # History tab
 		_load_history(false)
@@ -308,7 +322,7 @@ func _on_state_changed() -> void:
 			unpublished = " | %d unpublished change%s" % [status.unpublished_changes, "" if status.unpublished_changes == 1 else "s"]
 		var rev_str := status.head_revision_display
 		var is_logged_in := not status.current_user.is_empty()
-		_user_branch_label.text = "Branch: %s (%s)%s | User: %s%s" % [status.current_branch, rev_str, behind, status.current_user if is_logged_in else "logged out", unpublished]
+		_user_branch_label.text = "Branch: %s (%s)%s | User: %s%s%s" % [status.current_branch, rev_str, behind, status.current_user if is_logged_in else "logged out", unpublished, _version_suffix()]
 		_login_edit.visible = not is_logged_in
 		_login_btn.visible = not is_logged_in
 
