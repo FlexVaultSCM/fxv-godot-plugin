@@ -23,6 +23,8 @@ var _status_label: Label
 var _spinner: TextureRect
 var _spinner_timer: Timer
 var _spinner_frame: int = 1
+var _branch_btn: MenuButton
+var _branch_menu: PopupMenu
 var _user_branch_label: Label
 var _login_edit: LineEdit
 var _login_btn: Button
@@ -69,10 +71,17 @@ func _build_ui() -> void:
 	_sync_btn.text = "Sync Workspace"
 	toolbar.add_child(_sync_btn)
 
+	_branch_btn = MenuButton.new()
+	_branch_btn.text = "Branch: -"
+	_branch_btn.tooltip_text = "Click to view and switch branches"
+	_branch_btn.flat = false
+	_branch_menu = _branch_btn.get_popup()
+	toolbar.add_child(_branch_btn)
+
 	toolbar.add_spacer(false)
 
 	_user_branch_label = Label.new()
-	_user_branch_label.text = "Branch: - | User: -%s" % _version_suffix()
+	_user_branch_label.text = "User: -%s" % _version_suffix()
 	toolbar.add_child(_user_branch_label)
 
 	_login_edit = LineEdit.new()
@@ -261,6 +270,8 @@ func _build_ui() -> void:
 func _connect_signals() -> void:
 	_publish_btn.pressed.connect(_on_publish_pressed)
 	_sync_btn.pressed.connect(_on_sync_pressed)
+	_branch_btn.about_to_popup.connect(_on_branch_menu_about_to_popup)
+	_branch_menu.index_pressed.connect(_on_branch_menu_item_selected)
 	_revert_btn.pressed.connect(_on_revert_pressed)
 	_diff_btn.pressed.connect(_on_diff_pressed)
 	_resolve_mine_btn.pressed.connect(func(): _on_resolve_pressed("mine"))
@@ -322,7 +333,9 @@ func _on_state_changed() -> void:
 			unpublished = " | %d unpublished change%s" % [status.unpublished_changes, "" if status.unpublished_changes == 1 else "s"]
 		var rev_str := status.head_revision_display
 		var is_logged_in := not status.current_user.is_empty()
-		_user_branch_label.text = "Branch: %s (%s)%s | User: %s%s%s" % [status.current_branch, rev_str, behind, status.current_user if is_logged_in else "logged out", unpublished, _version_suffix()]
+		_branch_btn.text = "Branch: %s" % (status.current_branch if not status.current_branch.is_empty() else "-")
+		_branch_btn.tooltip_text = "Current branch: %s (head: %s). Click to switch branches." % [status.current_branch, rev_str]
+		_user_branch_label.text = "User: %s (%s)%s%s%s" % [status.current_user if is_logged_in else "logged out", rev_str, behind, unpublished, _version_suffix()]
 		_login_edit.visible = not is_logged_in
 		_login_btn.visible = not is_logged_in
 
@@ -403,6 +416,7 @@ func _set_busy(busy: bool) -> void:
 	_busy = busy
 	_publish_btn.disabled = busy
 	_sync_btn.disabled = busy
+	_branch_btn.disabled = busy
 	_resolve_mine_btn.disabled = busy
 	_resolve_theirs_btn.disabled = busy
 	_history_refresh_btn.disabled = busy
@@ -502,6 +516,66 @@ func _on_sync_pressed() -> void:
 			_status_label.text = "Sync failed: %s" % reason
 			push_error("[FlexVault] Sync failed: " + res.error_message)
 	)
+
+func _on_branch_menu_about_to_popup() -> void:
+	_branch_menu.clear()
+	_branch_menu.add_item("Loading branches...", 0)
+	_branch_menu.set_item_disabled(0, true)
+
+	FxvRunner.get_branch_list_async(func(res: FxvRunner.FxvResult) -> void:
+		_branch_menu.clear()
+		if not res.success or not (res.data is FxvDto.BranchListPayload):
+			_branch_menu.add_item("Failed to load branches", 0)
+			_branch_menu.set_item_disabled(0, true)
+			return
+
+		var payload: FxvDto.BranchListPayload = res.data
+		var cache := FxvStateCache.get_instance()
+		var status := cache.get_latest_status()
+		var current_branch: String = status.current_branch if status != null else ""
+
+		if payload.branches.is_empty():
+			_branch_menu.add_item("No branches found", 0)
+			_branch_menu.set_item_disabled(0, true)
+			return
+
+		for i in range(payload.branches.size()):
+			var b := payload.branches[i]
+			var label := b.branch
+			if b.retired:
+				label += " (retired)"
+			elif b.local_only:
+				label += " (local only)"
+			if b.branch == current_branch:
+				label = "● " + label
+			_branch_menu.add_item(label, i)
+			_branch_menu.set_item_metadata(i, b.branch)
+			if b.branch == current_branch or b.retired:
+				_branch_menu.set_item_disabled(i, b.branch == current_branch)
+	)
+
+func _on_branch_menu_item_selected(index: int) -> void:
+	var branch_name = _branch_menu.get_item_metadata(index)
+	if branch_name is String and not branch_name.is_empty():
+		_switch_branch(branch_name)
+
+func _switch_branch(target_branch: String) -> void:
+	if not FxvSafetyGuards.ensure_safe_to_mutate("Branch Switch"):
+		return
+	_status_label.text = "Switching to branch '%s'..." % target_branch
+	_set_busy(true)
+	FxvRunner.branch_switch_async(target_branch, func(res: FxvRunner.FxvResult) -> void:
+		_set_busy(false)
+		if res.success:
+			_status_label.text = "Switched to branch '%s'." % target_branch
+			request_refresh.emit()
+			EditorInterface.get_resource_filesystem().scan()
+		else:
+			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
+			_status_label.text = "Branch switch failed: %s" % reason
+			push_error("[FlexVault] Branch switch failed: " + res.error_message)
+	)
+
 
 func _on_login_pressed() -> void:
 	var username := _login_edit.text.strip_edges()

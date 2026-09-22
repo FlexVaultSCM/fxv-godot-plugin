@@ -78,6 +78,26 @@ func test_dto():
 	assert(conflict_item.is_conflicted == true, "Should be conflicted")
 	assert(conflict_item.needs_snapshot == false, "Conflict-only entry has no workspace change")
 	assert(conflict_item.conflict_state.kind == "type_change", "Conflict kind mismatch")
+
+	# Branch list DTO test
+	var branch_list_dict = {
+		"branches": [
+			{
+				"branch": "main",
+				"branch_unique_id": "0123456789abcdef",
+				"branch_type": "global",
+				"published_head": "main.10",
+				"draft_head": "main.10.1",
+				"local_only": false,
+				"retired": false
+			}
+		]
+	}
+	var bl_payload = FxvDto.BranchListPayload.from_dict(branch_list_dict)
+	assert(bl_payload.branches.size() == 1, "Branch count mismatch")
+	assert(bl_payload.branches[0].branch == "main", "Branch name mismatch")
+	assert(bl_payload.branches[0].branch_type == "global", "Branch type mismatch")
+	assert(bl_payload.branches[0].published_head == "main.10", "Published head mismatch")
 	print("FxvDto OK.")
 
 func test_settings():

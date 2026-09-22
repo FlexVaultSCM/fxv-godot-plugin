@@ -305,3 +305,41 @@ class ChangeInfoPayload extends RefCounted:
 				if ch is Dictionary:
 					cip.changes.append(ChangeInfoItem.from_dict(ch))
 		return cip
+
+
+class BranchInfo extends RefCounted:
+	var branch: String = ""
+	var branch_unique_id: String = ""
+	var branch_type: String = ""
+	var owner: String = ""
+	var published_head: String = ""
+	var draft_head: String = ""
+	var local_only: bool = false
+	var retired: bool = false
+
+	static func from_dict(d: Dictionary) -> BranchInfo:
+		var bi := BranchInfo.new()
+		if d.is_empty(): return bi
+		bi.branch = d.get("branch", "")
+		bi.branch_unique_id = d.get("branch_unique_id", "")
+		bi.branch_type = d.get("branch_type", "")
+		bi.owner = d.get("owner", "")
+		bi.published_head = d.get("published_head", "")
+		bi.draft_head = d.get("draft_head", "")
+		bi.local_only = bool(d.get("local_only", false))
+		bi.retired = bool(d.get("retired", false))
+		return bi
+
+
+class BranchListPayload extends RefCounted:
+	var branches: Array[BranchInfo] = []
+
+	static func from_dict(d: Dictionary) -> BranchListPayload:
+		var blp := BranchListPayload.new()
+		if d.is_empty(): return blp
+		if d.has("branches") and d["branches"] is Array:
+			for b in d["branches"]:
+				if b is Dictionary:
+					blp.branches.append(BranchInfo.from_dict(b))
+		return blp
+
