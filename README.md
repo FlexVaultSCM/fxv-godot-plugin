@@ -7,7 +7,7 @@ Godot Engine 4.x Editor Version Control plugin for [FlexVault](https://fxv.dev).
 ## Requirements
 
 * **Godot**: Godot 4.0, 4.1, 4.2, 4.3+.
-* **FlexVault CLI**: `fxv` binary version `0.10.1` to `< 0.12.0` installed and accessible (or configured via Editor Settings).
+* **FlexVault CLI**: `fxv` binary version `0.11.0` to `< 0.12.0` installed and accessible (or configured via Editor Settings).
 
 ---
 

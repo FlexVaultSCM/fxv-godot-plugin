@@ -20,11 +20,11 @@ func test_version_guard():
 	assert(sem != null, "SemVer parse failed")
 	assert(sem.major == 0 and sem.minor == 8 and sem.patch == 0, "SemVer values mismatch")
 
-	var res = FxvVersionGuard.check_version("0.10.1")
-	assert(res["compatible"] == true, "0.10.1 should be compatible")
+	var res = FxvVersionGuard.check_version("0.11.0")
+	assert(res["compatible"] == true, "0.11.0 should be compatible")
 
-	var res_old = FxvVersionGuard.check_version("0.10.0")
-	assert(res_old["compatible"] == false, "0.10.0 should be incompatible")
+	var res_old = FxvVersionGuard.check_version("0.10.1")
+	assert(res_old["compatible"] == false, "0.10.1 should be incompatible")
 
 	FxvVersionGuard.set_incompatible("custom error")
 	assert(FxvVersionGuard.is_compatible() == false, "Should be marked incompatible")

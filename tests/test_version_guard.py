@@ -60,7 +60,7 @@ def check_version(version_str, min_ver, max_ver):
 
 class TestVersionGuard(unittest.TestCase):
     def setUp(self):
-        self.min_ver = SemVer(0, 10, 1)
+        self.min_ver = SemVer(0, 11, 0)
         self.max_ver = SemVer(0, 12, 0)
 
     def test_parse_valid(self):
@@ -77,16 +77,16 @@ class TestVersionGuard(unittest.TestCase):
         self.assertIsNone(parse_semver("1.2.3.4"))
 
     def test_compatibility(self):
-        ok, _ = check_version("0.10.1", self.min_ver, self.max_ver)
-        self.assertTrue(ok)
-
-        ok, _ = check_version("0.10.9", self.min_ver, self.max_ver)
-        self.assertTrue(ok)
-
         ok, _ = check_version("0.11.0", self.min_ver, self.max_ver)
         self.assertTrue(ok)
 
-        ok, _ = check_version("0.10.0", self.min_ver, self.max_ver)
+        ok, _ = check_version("0.11.5", self.min_ver, self.max_ver)
+        self.assertTrue(ok)
+
+        ok, _ = check_version("0.10.1", self.min_ver, self.max_ver)
+        self.assertFalse(ok)
+
+        ok, _ = check_version("0.10.9", self.min_ver, self.max_ver)
         self.assertFalse(ok)
 
         ok, _ = check_version("0.9.0", self.min_ver, self.max_ver)
