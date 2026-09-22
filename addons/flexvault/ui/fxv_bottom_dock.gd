@@ -294,7 +294,7 @@ func _connect_signals() -> void:
 	var cache := FxvStateCache.get_instance()
 	cache.state_changed.connect(_on_state_changed)
 
-## " | fxv <cli version> / plugin <plugin version>", omitting either half that isn't known yet
+## " | fxv <cli version> / plugin <plugin version> (beta)", omitting either half that isn't known yet
 ## (CLI version check hasn't completed, or plugin.cfg couldn't be read).
 func _version_suffix() -> String:
 	var cli_version := FxvVersionGuard.get_last_version_string()
@@ -305,7 +305,7 @@ func _version_suffix() -> String:
 	if not cli_version.is_empty():
 		parts.append("fxv %s" % cli_version)
 	if not plugin_version.is_empty():
-		parts.append("plugin %s" % plugin_version)
+		parts.append("plugin %s (beta)" % plugin_version)
 	return " | %s" % " / ".join(parts)
 
 func _on_tab_changed(tab_idx: int) -> void:
