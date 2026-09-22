@@ -436,3 +436,40 @@ static func cat_to_file(repo_relative_path: String, revision: String, destinatio
 			f.close()
 			return true
 	return false
+
+
+static func get_branch_list(all_branches: bool = false) -> FxvResult:
+	var args := ["branch", "list"]
+	if all_branches:
+		args.append("--all")
+	var res := run_command(args)
+	if res.success and res.data is Dictionary:
+		res.data = FxvDto.BranchListPayload.from_dict(res.data)
+	return res
+
+
+static func get_branch_list_async(callback: Callable, all_branches: bool = false) -> void:
+	var args := ["branch", "list"]
+	if all_branches:
+		args.append("--all")
+	run_command_async(args, func(res: FxvResult) -> void:
+		if res.success and res.data is Dictionary:
+			res.data = FxvDto.BranchListPayload.from_dict(res.data)
+		callback.call(res)
+	)
+
+
+static func branch_switch(branch: String) -> FxvResult:
+	var res := run_command(["branch", "switch", branch])
+	if res.success and res.data is Dictionary:
+		res.data = FxvDto.WorkspaceSyncPayload.from_dict(res.data)
+	return res
+
+
+static func branch_switch_async(branch: String, callback: Callable) -> void:
+	run_command_async(["branch", "switch", branch], func(res: FxvResult) -> void:
+		if res.success and res.data is Dictionary:
+			res.data = FxvDto.WorkspaceSyncPayload.from_dict(res.data)
+		callback.call(res)
+	)
+

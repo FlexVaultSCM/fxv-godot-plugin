@@ -7,7 +7,7 @@ Godot Engine 4.x Editor Version Control plugin for [FlexVault](https://fxv.dev).
 ## Requirements
 
 * **Godot**: Godot 4.0, 4.1, 4.2, 4.3+.
-* **FlexVault CLI**: `fxv` binary version `0.10.1` to `< 0.11.0` installed and accessible (or configured via Editor Settings).
+* **FlexVault CLI**: `fxv` binary version `0.11.0` to `< 0.12.0` installed and accessible (or configured via Editor Settings).
 
 ---
 
@@ -47,6 +47,7 @@ Settings can be customized in **Editor -> Editor Settings -> Version Control -> 
   * **Diff Support**: Diff modified files against their published or local snapshot base revision in an external visual diff viewer.
   * **Conflict Resolution**: Inline `[Resolve (Mine)]` and `[Resolve (Theirs)]` actions for merge conflict resolution.
   * **Workspace Synchronization**: One-click synchronization (`fxv sync`) to pull latest revisions from remote and rebase local drafts.
+  * **Branch Swapping**: View and switch branches directly from the toolbar menu (`fxv branch switch`), with safety pre-checks and filesystem re-scanning.
   * **History & Revision Jumping**: Browse repository commit history (revisions, authors, commit descriptions, commit hashes) and jump to any historical revision (`fxv goto`).
 * **Companion File Atomicity**:
   * Automatically coordinates Godot engine companion files (`.import` and `.uid`) whenever files are reverted or resolved to prevent broken resource links.

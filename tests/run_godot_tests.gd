@@ -20,11 +20,11 @@ func test_version_guard():
 	assert(sem != null, "SemVer parse failed")
 	assert(sem.major == 0 and sem.minor == 8 and sem.patch == 0, "SemVer values mismatch")
 
-	var res = FxvVersionGuard.check_version("0.10.1")
-	assert(res["compatible"] == true, "0.10.1 should be compatible")
+	var res = FxvVersionGuard.check_version("0.11.0")
+	assert(res["compatible"] == true, "0.11.0 should be compatible")
 
-	var res_old = FxvVersionGuard.check_version("0.10.0")
-	assert(res_old["compatible"] == false, "0.10.0 should be incompatible")
+	var res_old = FxvVersionGuard.check_version("0.10.1")
+	assert(res_old["compatible"] == false, "0.10.1 should be incompatible")
 
 	FxvVersionGuard.set_incompatible("custom error")
 	assert(FxvVersionGuard.is_compatible() == false, "Should be marked incompatible")
@@ -78,6 +78,26 @@ func test_dto():
 	assert(conflict_item.is_conflicted == true, "Should be conflicted")
 	assert(conflict_item.needs_snapshot == false, "Conflict-only entry has no workspace change")
 	assert(conflict_item.conflict_state.kind == "type_change", "Conflict kind mismatch")
+
+	# Branch list DTO test
+	var branch_list_dict = {
+		"branches": [
+			{
+				"branch": "main",
+				"branch_unique_id": "0123456789abcdef",
+				"branch_type": "global",
+				"published_head": "main.10",
+				"draft_head": "main.10.1",
+				"local_only": false,
+				"retired": false
+			}
+		]
+	}
+	var bl_payload = FxvDto.BranchListPayload.from_dict(branch_list_dict)
+	assert(bl_payload.branches.size() == 1, "Branch count mismatch")
+	assert(bl_payload.branches[0].branch == "main", "Branch name mismatch")
+	assert(bl_payload.branches[0].branch_type == "global", "Branch type mismatch")
+	assert(bl_payload.branches[0].published_head == "main.10", "Published head mismatch")
 	print("FxvDto OK.")
 
 func test_settings():
