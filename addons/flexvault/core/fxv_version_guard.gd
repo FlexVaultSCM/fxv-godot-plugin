@@ -43,7 +43,7 @@ class SemVer extends RefCounted:
 	func is_greater_than_or_equal(other: SemVer) -> bool:
 		return compare_to(other) >= 0
 
-	func to_string() -> String:
+	func _to_string() -> String:
 		return "%d.%d.%d" % [major, minor, patch]
 
 
@@ -147,6 +147,14 @@ static func get_last_version_string() -> String:
 
 static func get_last_error_message() -> String:
 	return _cached_error_message
+
+
+static func get_min_version_string() -> String:
+	return SemVer.new(MIN_MAJOR, MIN_MINOR, MIN_PATCH).to_string()
+
+
+static func get_max_version_string() -> String:
+	return SemVer.new(MAX_MAJOR, MAX_MINOR, MAX_PATCH).to_string()
 
 
 ## Reads the plugin's own version from plugin.cfg (not the fxv CLI's), cached for the process.

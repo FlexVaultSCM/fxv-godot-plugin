@@ -30,6 +30,15 @@ func test_version_guard():
 	assert(FxvVersionGuard.is_compatible() == false, "Should be marked incompatible")
 	assert(FxvVersionGuard.get_last_error_message() == "custom error", "Error message mismatch")
 	FxvVersionGuard.reset_cached_version()
+
+	assert(FxvVersionGuard.get_min_version_string() == "0.11.0", "Min version string mismatch")
+	assert(FxvVersionGuard.get_max_version_string() == "0.12.0", "Max version string mismatch")
+
+	# Regression: SemVer's _to_string() override must actually be dispatched to by .to_string(),
+	# not fall back to Object's default "<RefCounted#...>" representation.
+	var res_low = FxvVersionGuard.check_version("0.5.0")
+	assert(res_low["error"].find("RefCounted") == -1, "check_version() error leaked default Object repr: " + res_low["error"])
+	assert(res_low["error"].find("0.11.0") != -1 and res_low["error"].find("0.12.0") != -1, "check_version() error missing version bounds: " + res_low["error"])
 	print("FxvVersionGuard OK.")
 
 func test_meta_helper():
@@ -114,6 +123,15 @@ func test_runner():
 	print("Testing FxvRunner...")
 	var has_checked = FxvRunner.ensure_version_checked()
 	print("ensure_version_checked result: ", has_checked)
+
+	var full_args = FxvRunner.build_integration_register_args("/tmp/ws", "0.6.0", "0.11.0", "0.12.0")
+	assert(full_args == ["integration", "register", "--name", "godot", "--plugin-version", "0.6.0", "--min", "0.11.0", "--max-version", "0.12.0", "--workspace", "/tmp/ws"], "Full integration register args mismatch: " + str(full_args))
+
+	var unknown_plugin_args = FxvRunner.build_integration_register_args("/tmp/ws", "Unknown", "0.11.0", "0.12.0")
+	assert(not unknown_plugin_args.has("--plugin-version"), "Unknown plugin version should be omitted: " + str(unknown_plugin_args))
+
+	var empty_plugin_args = FxvRunner.build_integration_register_args("/tmp/ws", "", "0.11.0", "0.12.0")
+	assert(not empty_plugin_args.has("--plugin-version"), "Empty plugin version should be omitted: " + str(empty_plugin_args))
 	print("FxvRunner OK.")
 
 func test_ui():
