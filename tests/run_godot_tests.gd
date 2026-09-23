@@ -33,6 +33,12 @@ func test_version_guard():
 
 	assert(FxvVersionGuard.get_min_version_string() == "0.11.0", "Min version string mismatch")
 	assert(FxvVersionGuard.get_max_version_string() == "0.12.0", "Max version string mismatch")
+
+	# Regression: SemVer's _to_string() override must actually be dispatched to by .to_string(),
+	# not fall back to Object's default "<RefCounted#...>" representation.
+	var res_low = FxvVersionGuard.check_version("0.5.0")
+	assert(res_low["error"].find("RefCounted") == -1, "check_version() error leaked default Object repr: " + res_low["error"])
+	assert(res_low["error"].find("0.11.0") != -1 and res_low["error"].find("0.12.0") != -1, "check_version() error missing version bounds: " + res_low["error"])
 	print("FxvVersionGuard OK.")
 
 func test_meta_helper():
