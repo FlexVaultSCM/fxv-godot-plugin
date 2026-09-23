@@ -149,6 +149,11 @@ static func get_last_error_message() -> String:
 	return _cached_error_message
 
 
+## Deliberately not SemVer.new(...).to_string(): on a statically-typed SemVer, GDScript resolves
+## that call to Object's built-in to_string() rather than this class's method (which needs the
+## _to_string() virtual-override name to be dispatched correctly), silently returning
+## "<RefCounted#...>". check_version()'s min_ver.to_string()/max_ver.to_string() above hit the
+## same bug.
 static func get_min_version_string() -> String:
 	return "%d.%d.%d" % [MIN_MAJOR, MIN_MINOR, MIN_PATCH]
 
