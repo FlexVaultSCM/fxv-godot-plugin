@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## [0.7.0](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.6.0...v0.7.0) (2026-09-23)
+
+
+### Features
+
+* register godot plugin with fxv integration registry ([#18](https://github.com/FlexVaultSCM/fxv-godot-plugin/issues/18)) ([9df9ff2](https://github.com/FlexVaultSCM/fxv-godot-plugin/commit/9df9ff206c7557e1c55318569b44cd9b22c33e42))
+* **ui:** append beta tag to dock plugin version ([#17](https://github.com/FlexVaultSCM/fxv-godot-plugin/issues/17)) ([64d6027](https://github.com/FlexVaultSCM/fxv-godot-plugin/commit/64d6027f0310a9aeaee11daa80f486465bcd2053))
+
 ## [0.6.0](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.5.1...v0.6.0) (2026-09-22)
 
 
