@@ -149,6 +149,14 @@ static func get_last_error_message() -> String:
 	return _cached_error_message
 
 
+static func get_min_version_string() -> String:
+	return "%d.%d.%d" % [MIN_MAJOR, MIN_MINOR, MIN_PATCH]
+
+
+static func get_max_version_string() -> String:
+	return "%d.%d.%d" % [MAX_MAJOR, MAX_MINOR, MAX_PATCH]
+
+
 ## Reads the plugin's own version from plugin.cfg (not the fxv CLI's), cached for the process.
 static func get_plugin_version() -> String:
 	if not _cached_plugin_version.is_empty():

@@ -410,6 +410,44 @@ static func logout_async(callback: Callable) -> void:
 	run_command_async(["logout"], callback)
 
 
+## Builds the CLI args for 'fxv integration register --name godot ...', split out from
+## register_integration_async so the args themselves are directly testable.
+static func build_integration_register_args(workspace: String, plugin_version: String, min_version: String, max_version: String) -> Array:
+	var args := ["integration", "register", "--name", "godot"]
+	if not plugin_version.is_empty() and plugin_version.to_lower() != "unknown":
+		args.append("--plugin-version")
+		args.append(plugin_version)
+	if not min_version.is_empty():
+		args.append("--min")
+		args.append(min_version)
+	if not max_version.is_empty():
+		args.append("--max-version")
+		args.append(max_version)
+	args.append("--workspace")
+	args.append(workspace)
+	return args
+
+
+## Registers this plugin instance with fxv's integration registry for the current workspace.
+## Best-effort and non-blocking: failures are logged and never surfaced to the user.
+static func register_integration_async(callback: Callable = Callable()) -> void:
+	var workspace := FxvSettings.get_repository_root()
+	var args := build_integration_register_args(
+		workspace,
+		FxvVersionGuard.get_plugin_version(),
+		FxvVersionGuard.get_min_version_string(),
+		FxvVersionGuard.get_max_version_string()
+	)
+	run_command_async(args, func(res: FxvResult) -> void:
+		if res.success:
+			print("[FlexVault] Registered godot integration for workspace %s." % workspace)
+		else:
+			push_warning("[FlexVault] Integration registration failed (non-fatal): " + res.error_message)
+		if callback.is_valid():
+			callback.call(res)
+	)
+
+
 static func cat_to_file(repo_relative_path: String, revision: String, destination_file_path: String) -> bool:
 	if FxvVersionGuard.is_compatible() == false:
 		push_error("[FlexVault] cat_to_file blocked: " + FxvVersionGuard.get_last_error_message())

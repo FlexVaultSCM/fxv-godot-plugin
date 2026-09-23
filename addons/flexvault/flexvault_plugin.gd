@@ -118,7 +118,10 @@ func _enter_tree() -> void:
 
 	# Initial version check and refresh
 	if FxvSettings.is_in_flexvault_repository():
-		FxvRunner.ensure_version_checked()
+		if FxvRunner.ensure_version_checked():
+			# Register this plugin instance with fxv's integration registry. Best-effort:
+			# failures are logged and never block editor startup.
+			FxvRunner.register_integration_async()
 		_state_cache.refresh()
 
 func _exit_tree() -> void:
