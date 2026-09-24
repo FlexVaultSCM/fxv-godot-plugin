@@ -139,6 +139,24 @@ class CommitRef extends RefCounted:
 				return "%s.%s" % [commit.branch, str(commit.revision)]
 			return commit.branch
 
+	## Same shape as revision_display, but for feeding back into the fxv CLI (cat -r, changeinfo,
+	## etc.) rather than showing on screen. The CLI's revision-spec parser (BranchCommitIdsSpec)
+	## expects a literal "-" placeholder for "no published revision yet", e.g. "main.-.2" - not
+	## the word "unpublished" revision_display uses for readability. Passing revision_display to
+	## the CLI here fails with "Invalid branch revision number: unpublished".
+	var revision_spec: String:
+		get:
+			if commit == null:
+				return ""
+			if commit.type == "draft" and commit.draft_revision != null and int(commit.draft_revision) > 0:
+				if commit.revision != null:
+					return "%s.%s.%s" % [commit.branch, str(commit.revision), str(commit.draft_revision)]
+				else:
+					return "%s.-.%s" % [commit.branch, str(commit.draft_revision)]
+			if commit.revision != null:
+				return "%s.%s" % [commit.branch, str(commit.revision)]
+			return commit.branch
+
 	static func from_dict(d: Dictionary) -> CommitRef:
 		var cr := CommitRef.new()
 		if d.is_empty(): return cr
