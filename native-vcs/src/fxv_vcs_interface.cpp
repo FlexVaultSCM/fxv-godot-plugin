@@ -118,11 +118,11 @@ String base_revision_for_file(const Dictionary &p_status, const String &p_file_p
 
 namespace godot {
 
-void FxvVcsInterface::_bind_methods() {
+void FlexVault::_bind_methods() {
 	// Nothing script-facing to expose beyond the EditorVCSInterface overrides below.
 }
 
-bool FxvVcsInterface::_initialize(const String &p_project_path) {
+bool FlexVault::_initialize(const String &p_project_path) {
 	repo_project_path = p_project_path;
 
 	PackedStringArray args;
@@ -138,15 +138,15 @@ bool FxvVcsInterface::_initialize(const String &p_project_path) {
 	return true;
 }
 
-bool FxvVcsInterface::_shut_down() {
+bool FlexVault::_shut_down() {
 	return true;
 }
 
-String FxvVcsInterface::_get_vcs_name() {
+String FlexVault::_get_vcs_name() {
 	return "FlexVault";
 }
 
-TypedArray<Dictionary> FxvVcsInterface::_get_modified_files_data() {
+TypedArray<Dictionary> FlexVault::_get_modified_files_data() {
 	TypedArray<Dictionary> result;
 
 	PackedStringArray args;
@@ -183,22 +183,22 @@ TypedArray<Dictionary> FxvVcsInterface::_get_modified_files_data() {
 	return result;
 }
 
-void FxvVcsInterface::_stage_file(const String &p_file_path) {
+void FlexVault::_stage_file(const String &p_file_path) {
 	// No-op: FlexVault has no staging area, every pending change ships with the next snapshot.
 }
 
-void FxvVcsInterface::_unstage_file(const String &p_file_path) {
+void FlexVault::_unstage_file(const String &p_file_path) {
 	// No-op, see _stage_file.
 }
 
-void FxvVcsInterface::_discard_file(const String &p_file_path) {
+void FlexVault::_discard_file(const String &p_file_path) {
 	PackedStringArray args;
 	args.push_back("revert");
 	args.push_back(p_file_path);
 	fxv::run(args);
 }
 
-void FxvVcsInterface::_commit(const String &p_msg) {
+void FlexVault::_commit(const String &p_msg) {
 	PackedStringArray args;
 	args.push_back("snapshot");
 	if (!p_msg.is_empty()) {
@@ -208,7 +208,7 @@ void FxvVcsInterface::_commit(const String &p_msg) {
 	fxv::run(args);
 }
 
-TypedArray<Dictionary> FxvVcsInterface::_get_diff(const String &p_identifier, int32_t p_area) {
+TypedArray<Dictionary> FlexVault::_get_diff(const String &p_identifier, int32_t p_area) {
 	TypedArray<Dictionary> result;
 
 	// Per-commit history diffs aren't exposed by the fxv CLI yet - only the working-tree
@@ -251,7 +251,7 @@ TypedArray<Dictionary> FxvVcsInterface::_get_diff(const String &p_identifier, in
 	return result;
 }
 
-TypedArray<Dictionary> FxvVcsInterface::_get_previous_commits(int32_t p_max_commits) {
+TypedArray<Dictionary> FlexVault::_get_previous_commits(int32_t p_max_commits) {
 	TypedArray<Dictionary> result;
 
 	PackedStringArray args;
@@ -285,7 +285,7 @@ TypedArray<Dictionary> FxvVcsInterface::_get_previous_commits(int32_t p_max_comm
 	return result;
 }
 
-TypedArray<String> FxvVcsInterface::_get_branch_list() {
+TypedArray<String> FlexVault::_get_branch_list() {
 	TypedArray<String> result;
 
 	PackedStringArray args;
@@ -316,7 +316,7 @@ TypedArray<String> FxvVcsInterface::_get_branch_list() {
 	return result;
 }
 
-String FxvVcsInterface::_get_current_branch_name() {
+String FlexVault::_get_current_branch_name() {
 	PackedStringArray args;
 	args.push_back("status");
 	args.push_back("--skip-remote-update");
@@ -330,7 +330,7 @@ String FxvVcsInterface::_get_current_branch_name() {
 	return payload.get("current_branch", "");
 }
 
-bool FxvVcsInterface::_checkout_branch(const String &p_branch_name) {
+bool FlexVault::_checkout_branch(const String &p_branch_name) {
 	PackedStringArray args;
 	args.push_back("branch");
 	args.push_back("switch");
