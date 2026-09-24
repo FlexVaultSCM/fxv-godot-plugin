@@ -28,8 +28,11 @@ EditorVCSInterface::ChangeType map_change_type(const String &p_workspace_state) 
 	return EditorVCSInterface::CHANGE_TYPE_MODIFIED;
 }
 
-// Mirrors FxvDto.CommitRef.revision_display in addons/flexvault/core/fxv_dto.gd, so the
-// native diff base and the GDScript dock's diff base agree on which revision "current" means.
+// Mirrors FxvDto.CommitRef.revision_spec (not revision_display) in
+// addons/flexvault/core/fxv_dto.gd: this is fed straight back into `fxv cat -r <rev>` below, and
+// the CLI's revision-spec parser expects a literal "-" placeholder for "no published revision
+// yet" (e.g. "main.-.2"), not the word "unpublished" the GDScript dock shows on screen - passing
+// that word here fails with "Invalid branch revision number: unpublished".
 String revision_display(const Dictionary &p_commit_ref) {
 	if (p_commit_ref.is_empty()) {
 		return String();
@@ -44,7 +47,7 @@ String revision_display(const Dictionary &p_commit_ref) {
 		if (revision.get_type() != Variant::NIL) {
 			return branch + "." + String::num_int64((int64_t)revision) + "." + String::num_int64((int64_t)draft_revision);
 		}
-		return branch + ".unpublished." + String::num_int64((int64_t)draft_revision);
+		return branch + ".-." + String::num_int64((int64_t)draft_revision);
 	}
 	if (revision.get_type() != Variant::NIL) {
 		return branch + "." + String::num_int64((int64_t)revision);
@@ -338,6 +341,103 @@ bool FlexVault::_checkout_branch(const String &p_branch_name) {
 
 	fxv::CliResult res = fxv::run(args);
 	return res.success;
+}
+
+void FlexVault::_set_credentials(const String &p_username, const String &p_password, const String &p_ssh_public_key_path, const String &p_ssh_private_key_path, const String &p_ssh_passphrase) {
+	// FlexVault authenticates by username only (`fxv login <username>`), so that's the one
+	// field from this dialog with a real equivalent - password/SSH key/passphrase are ignored.
+	if (p_username.strip_edges().is_empty()) {
+		return;
+	}
+	PackedStringArray args;
+	args.push_back("login");
+	args.push_back(p_username);
+	fxv::CliResult res = fxv::run(args);
+	if (!res.success) {
+		popup_error("FlexVault login failed: " + res.error_message);
+	}
+}
+
+TypedArray<String> FlexVault::_get_remotes() {
+	// FlexVault talks to a single configured server rather than a git-style set of named
+	// remotes, but the panel's Pull/Push/Fetch buttons only enable once something is selected
+	// here - so report one synthetic entry to route those actions to sync/publish/status below.
+	TypedArray<String> result;
+	result.push_back("flexvault");
+	return result;
+}
+
+void FlexVault::_create_branch(const String &p_branch_name) {
+	PackedStringArray args;
+	args.push_back("branch");
+	args.push_back("new");
+	args.push_back(p_branch_name);
+	fxv::CliResult res = fxv::run(args);
+	if (!res.success) {
+		popup_error("Could not create branch '" + p_branch_name + "': " + res.error_message);
+	}
+}
+
+void FlexVault::_remove_branch(const String &p_branch_name) {
+	// FlexVault never deletes branch history outright - "retire" is the closest equivalent
+	// (hides it from listings and blocks publishes; `fxv branch restore` undoes it). Retiring a
+	// global branch requires --force on the CLI; that's surfaced here as a normal error rather
+	// than silently forced, so removing a shared branch stays a deliberate, separate action.
+	PackedStringArray args;
+	args.push_back("branch");
+	args.push_back("retire");
+	args.push_back(p_branch_name);
+	fxv::CliResult res = fxv::run(args);
+	if (!res.success) {
+		popup_error("Could not retire branch '" + p_branch_name + "': " + res.error_message);
+	}
+}
+
+void FlexVault::_create_remote(const String &p_remote_name, const String &p_remote_url) {
+	popup_error("FlexVault connects to a single server, configured outside the editor - there's no per-project remote to add.");
+}
+
+void FlexVault::_remove_remote(const String &p_remote_name) {
+	popup_error("FlexVault connects to a single server, configured outside the editor - there's no per-project remote to remove.");
+}
+
+void FlexVault::_pull(const String &p_remote) {
+	PackedStringArray args;
+	args.push_back("sync");
+	fxv::CliResult res = fxv::run(args);
+	if (!res.success) {
+		popup_error("Sync failed: " + res.error_message);
+	}
+}
+
+void FlexVault::_push(const String &p_remote, bool p_force) {
+	// No FlexVault equivalent of git's "force push" (there's nothing to overwrite - publish
+	// always applies on top of the branch's current published head), so `p_force` is ignored.
+	PackedStringArray args;
+	args.push_back("publish");
+	fxv::CliResult res = fxv::run(args);
+	if (!res.success) {
+		popup_error("Publish failed: " + res.error_message);
+	}
+}
+
+void FlexVault::_fetch(const String &p_remote) {
+	// FlexVault has no separate "update local refs without merging" step - every `status` call
+	// already queries the server live - so Fetch just runs one (skipping the disk scan, since
+	// only the remote-connectivity/revisions-behind check matters here) and surfaces failures.
+	PackedStringArray args;
+	args.push_back("status");
+	args.push_back("--skip-scan");
+	fxv::CliResult res = fxv::run(args);
+	if (!res.success) {
+		popup_error("Fetch failed: " + res.error_message);
+	}
+}
+
+TypedArray<Dictionary> FlexVault::_get_line_diff(const String &p_file_path, const String &p_text) {
+	// Live per-keystroke diffing against unsaved editor text isn't implemented - _get_diff()
+	// (against the file already on disk) covers the panel's main diff view.
+	return TypedArray<Dictionary>();
 }
 
 } // namespace godot
