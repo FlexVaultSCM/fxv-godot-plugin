@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## [0.7.1](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.7.0...v0.7.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* label unpublished draft revisions as 'unpublished' instead of '-' ([#20](https://github.com/FlexVaultSCM/fxv-godot-plugin/issues/20)) ([e3d4b0f](https://github.com/FlexVaultSCM/fxv-godot-plugin/commit/e3d4b0f7b15396a7d031037ce83e40460509ec14))
+
 ## [0.7.0](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.6.0...v0.7.0) (2026-09-23)
 
 
