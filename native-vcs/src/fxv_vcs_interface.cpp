@@ -21,9 +21,8 @@ EditorVCSInterface::ChangeType map_change_type(const String &p_workspace_state) 
 	if (s == "renamed") {
 		return EditorVCSInterface::CHANGE_TYPE_RENAMED;
 	}
-	if (s == "conflicted") {
-		return EditorVCSInterface::CHANGE_TYPE_UNMERGED;
-	}
+	// "conflicted" is handled by the caller before map_change_type() is ever reached (see
+	// _get_modified_files_data), so it's not checked here.
 	// "modified" and "maybe_changed" both surface as a plain modification - the CLI's
 	// maybe_changed just means "size/mtime differs, content not yet hashed to confirm".
 	return EditorVCSInterface::CHANGE_TYPE_MODIFIED;
@@ -231,8 +230,13 @@ TypedArray<Dictionary> FxvVcsInterface::_get_diff(const String &p_identifier, in
 		return result;
 	}
 
+	// A failed cat (missing binary, bad revision, transient error) is not the same as "this
+	// file is new" - surfacing it as an all-insertions diff would be misleading, so bail out
+	// with no diff instead of guessing.
 	String old_content;
-	fxv::cat(p_identifier, base_rev, old_content);
+	if (!fxv::cat(p_identifier, base_rev, old_content)) {
+		return result;
+	}
 
 	String new_content;
 	Ref<FileAccess> f = FileAccess::open(repo_project_path.path_join(p_identifier), FileAccess::READ);

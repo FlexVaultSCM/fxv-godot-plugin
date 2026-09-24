@@ -4,6 +4,7 @@
 
 #include <godot_cpp/classes/editor_interface.hpp>
 #include <godot_cpp/classes/editor_settings.hpp>
+#include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/json.hpp>
 #include <godot_cpp/classes/os.hpp>
@@ -20,10 +21,12 @@ String find_binary() {
 
 	// Same Editor Settings override key the GDScript addon exposes, so a custom binary path
 	// set once (Editor Settings > Version Control > FlexVault) applies to both integrations.
-	EditorInterface *ei = EditorInterface::get_singleton();
+	// EditorInterface has no get_singleton() of its own in godot-cpp; it's fetched through
+	// the Engine singleton registry like any other editor-only singleton.
+	EditorInterface *ei = Object::cast_to<EditorInterface>(Engine::get_singleton()->get_singleton("EditorInterface"));
 	if (ei != nullptr) {
-		EditorSettings *es = ei->get_editor_settings();
-		if (es != nullptr && es->has_setting("version_control/flexvault/binary_path")) {
+		Ref<EditorSettings> es = ei->get_editor_settings();
+		if (es.is_valid() && es->has_setting("version_control/flexvault/binary_path")) {
 			String custom = String(es->get_setting("version_control/flexvault/binary_path")).strip_edges();
 			if (!custom.is_empty() && FileAccess::file_exists(custom)) {
 				return custom;
