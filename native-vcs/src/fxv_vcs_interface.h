@@ -14,8 +14,8 @@ namespace godot {
 // FlexVault has no git-style staging area - every changed file is always part of the next
 // `fxv snapshot`. _get_modified_files_data() reports everything as TREE_AREA_STAGED to match
 // that model (the Unstaged list is intentionally always empty), and stage/unstage are no-ops.
-class FxvVcsInterface : public EditorVCSInterface {
-	GDCLASS(FxvVcsInterface, EditorVCSInterface);
+class FlexVault : public EditorVCSInterface {
+	GDCLASS(FlexVault, EditorVCSInterface);
 
 protected:
 	static void _bind_methods();

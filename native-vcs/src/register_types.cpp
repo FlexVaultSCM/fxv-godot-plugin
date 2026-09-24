@@ -14,7 +14,7 @@ void initialize_fxv_vcs_module(ModuleInitializationLevel p_level) {
 	// Registering the class is all that's needed - Godot's Version Control Settings dialog
 	// discovers it via ClassDB::get_inheriters_from_class("EditorVCSInterface") and
 	// instantiates it itself once the user picks "FlexVault" from that list.
-	ClassDB::register_class<FxvVcsInterface>();
+	ClassDB::register_class<FlexVault>();
 }
 
 void uninitialize_fxv_vcs_module(ModuleInitializationLevel p_level) {
