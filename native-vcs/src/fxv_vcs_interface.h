@@ -37,6 +37,22 @@ public:
 	String _get_current_branch_name() override;
 	bool _checkout_branch(const String &p_branch_name) override;
 
+	// Godot's EditorVCSInterface marks these virtuals "required" - the engine hard-errors the
+	// moment it calls one that isn't overridden at all, even if the corresponding UI action
+	// (credentials, remotes, push/pull/fetch, live per-keystroke diff) is never used. FlexVault
+	// has no equivalent concept for any of these (single server, no git-style remotes, no
+	// staging), so they're safe no-ops/empty-results rather than real functionality.
+	void _set_credentials(const String &p_username, const String &p_password, const String &p_ssh_public_key_path, const String &p_ssh_private_key_path, const String &p_ssh_passphrase) override;
+	TypedArray<String> _get_remotes() override;
+	void _create_branch(const String &p_branch_name) override;
+	void _remove_branch(const String &p_branch_name) override;
+	void _create_remote(const String &p_remote_name, const String &p_remote_url) override;
+	void _remove_remote(const String &p_remote_name) override;
+	void _pull(const String &p_remote) override;
+	void _push(const String &p_remote, bool p_force) override;
+	void _fetch(const String &p_remote) override;
+	TypedArray<Dictionary> _get_line_diff(const String &p_file_path, const String &p_text) override;
+
 private:
 	String repo_project_path;
 };
