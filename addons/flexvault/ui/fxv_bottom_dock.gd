@@ -649,13 +649,14 @@ func _on_diff_pressed() -> void:
 func _on_history_diff_current_pressed() -> void:
 	var file_item := _history_details_tree.get_selected()
 	var rev := _get_selected_history_revision()
+	var rev_spec := _get_selected_history_revision_spec()
 	if file_item == null or rev.is_empty():
 		_status_label.text = "Select a revision and file to diff."
 		return
 
 	var path := file_item.get_text(0)
 	_status_label.text = "Opening diff viewer..."
-	match FxvDiffHelper.diff_file_against_base(path, rev):
+	match FxvDiffHelper.diff_file_against_base(path, rev_spec):
 		FxvDiffHelper.DiffResult.UNCHANGED:
 			_status_label.text = "%s has no differences between %s and the current workspace." % [path, rev]
 		FxvDiffHelper.DiffResult.ERROR:
@@ -667,13 +668,15 @@ func _on_history_diff_previous_pressed() -> void:
 	var file_item := _history_details_tree.get_selected()
 	var rev := _get_selected_history_revision()
 	var prev_rev := _get_previous_history_revision()
+	var rev_spec := _get_selected_history_revision_spec()
+	var prev_rev_spec := _get_previous_history_revision_spec()
 	if file_item == null or rev.is_empty() or prev_rev.is_empty():
 		_status_label.text = "Select a revision and file to diff."
 		return
 
 	var path := file_item.get_text(0)
 	_status_label.text = "Opening diff viewer..."
-	match FxvDiffHelper.diff_file_between_revisions(path, prev_rev, rev):
+	match FxvDiffHelper.diff_file_between_revisions(path, prev_rev_spec, rev_spec):
 		FxvDiffHelper.DiffResult.UNCHANGED:
 			_status_label.text = "%s has no differences between %s and %s." % [path, prev_rev, rev]
 		FxvDiffHelper.DiffResult.ERROR:
@@ -821,25 +824,56 @@ func _get_selected_history_revision() -> String:
 	return selected.get_text(0).trim_prefix("● ").strip_edges()
 
 
+## CLI-safe counterpart to _get_selected_history_revision() - use this one for anything that
+## calls back into the fxv CLI (diff, changeinfo); the other is for display/status text only.
+## See FxvDto.CommitRef.revision_spec for why the two differ for unpublished draft commits.
+func _get_selected_history_revision_spec() -> String:
+	var entry := _get_selected_history_entry()
+	if entry != null:
+		return entry.revision_spec
+	return _get_selected_history_revision()
+
+
+## CLI-safe counterpart to _get_previous_history_revision(), see _get_selected_history_revision_spec().
+func _get_previous_history_revision_spec() -> String:
+	var selected := _history_tree.get_selected()
+	if selected == null:
+		return ""
+	var next_item := selected.get_next()
+	if next_item == null:
+		return ""
+	var meta = next_item.get_metadata(0)
+	if meta is FxvDto.CommitRef:
+		return meta.revision_spec
+	return _get_previous_history_revision()
+
+
 func _on_history_row_selected() -> void:
-	var rev := _get_selected_history_revision()
-	if rev.is_empty():
+	var display_rev := _get_selected_history_revision()
+	if display_rev.is_empty():
 		return
 
-	if _change_info_cache.has(rev):
-		_render_change_info(rev, _change_info_cache[rev])
+	# revision_display is a human-readable label - for a purely local draft commit (no
+	# published revision yet) it reads like "main.unpublished.1", which the CLI's revision-spec
+	# parser rejects ("Invalid branch revision number: unpublished"). revision_spec is the same
+	# shape but CLI-safe ("main.-.1"); display_rev stays revision_display for the UI/cache key.
+	var entry := _get_selected_history_entry()
+	var query_rev := entry.revision_spec if entry != null else display_rev
+
+	if _change_info_cache.has(display_rev):
+		_render_change_info(display_rev, _change_info_cache[display_rev])
 		return
 
 	_history_details_tree.clear()
 	_history_details_tree.create_item()
-	_history_details_label.text = "Loading changed files for %s..." % rev
-	FxvRunner.get_change_info_async(rev, func(res: FxvRunner.FxvResult) -> void:
+	_history_details_label.text = "Loading changed files for %s..." % display_rev
+	FxvRunner.get_change_info_async(query_rev, func(res: FxvRunner.FxvResult) -> void:
 		if res.success and res.data is FxvDto.ChangeInfoPayload:
-			_change_info_cache[rev] = res.data
-			_render_change_info(rev, res.data)
+			_change_info_cache[display_rev] = res.data
+			_render_change_info(display_rev, res.data)
 		else:
 			var reason := res.error_message if not res.error_message.is_empty() else "unknown error"
-			_history_details_label.text = "Failed to load changed files for %s: %s" % [rev, reason]
+			_history_details_label.text = "Failed to load changed files for %s: %s" % [display_rev, reason]
 	)
 
 
@@ -874,6 +908,7 @@ func _on_goto_pressed() -> void:
 		return
 
 	var rev := _get_selected_history_revision()
+	var rev_spec := _get_selected_history_revision_spec()
 	if rev.is_empty():
 		_status_label.text = "Invalid revision selected."
 		return
@@ -882,7 +917,7 @@ func _on_goto_pressed() -> void:
 
 	_status_label.text = "Switching workspace to revision %s..." % rev
 	_set_busy(true)
-	FxvRunner.goto_revision_async(rev, func(res: FxvRunner.FxvResult) -> void:
+	FxvRunner.goto_revision_async(rev_spec, func(res: FxvRunner.FxvResult) -> void:
 		_set_busy(false)
 		if res.success:
 			_status_label.text = "Switched to %s." % rev
