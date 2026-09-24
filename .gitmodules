@@ -1,0 +1,4 @@
+[submodule "native-vcs/godot-cpp"]
+	path = native-vcs/godot-cpp
+	url = https://github.com/godotengine/godot-cpp.git
+	branch = 4.1

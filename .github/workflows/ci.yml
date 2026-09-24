@@ -83,3 +83,38 @@ jobs:
           test -s "$archive_name"
           sha256sum "$archive_name"
           echo "Packaging dry-run successful: $archive_name"
+
+  build-native-vcs:
+    name: Build native VCS extension (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            os: ubuntu-latest
+          - platform: windows
+            os: windows-latest
+          - platform: macos
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install SCons
+        run: python -m pip install scons
+
+      - name: Build
+        working-directory: native-vcs
+        run: scons platform=${{ matrix.platform }} target=template_debug -j4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flexvault_vcs-${{ matrix.platform }}
+          path: addons/flexvault_vcs/bin/
+          if-no-files-found: error
