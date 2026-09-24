@@ -20,3 +20,9 @@ Thumbs.db
 
 # FlexVault local workspace
 .fxv_workspace/
+
+# Native VCS extension build output (built by CI, not committed - see native-vcs/README.md)
+native-vcs/.sconsign*.dblite
+native-vcs/**/*.os
+native-vcs/**/*.obj
+addons/flexvault_vcs/bin/

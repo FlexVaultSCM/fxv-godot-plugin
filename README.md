@@ -54,6 +54,8 @@ Settings can be customized in **Editor -> Editor Settings -> Version Control -> 
 * **Mutation Safety Guards**:
   * Blocks mutating operations when a scene is running in the editor.
   * Automatically saves open scenes before workspace file mutations.
+* **Native Version Control panel integration** (`native-vcs/`, draft):
+  * A GDExtension implementing Godot's `EditorVCSInterface` so FlexVault appears as a choice in **Project > Version Control > Version Control Settings**, showing pending changes, diffs, commit, branch switching, and history in Godot's built-in panel. See `native-vcs/README.md` for build instructions; prebuilt binaries aren't bundled with the addon yet.
 
 ---
 
