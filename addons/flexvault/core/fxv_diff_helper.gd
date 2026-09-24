@@ -14,13 +14,17 @@ static func get_base_revision_for_file(repo_relative_path: String) -> String:
 
 	var file_item := cache.get_status_by_path(repo_relative_path)
 
+	# This return value is fed straight back into `fxv cat -r <revision>`, so it must be the
+	# CLI-safe revision_spec (e.g. "main.-.2"), not the human-readable revision_display
+	# ("main.unpublished.2") - the CLI's revision-spec parser rejects the latter.
+
 	# 1. If file has pending workspace modifications, diff against local snapshot or published HEAD
 	if file_item != null and file_item.needs_snapshot:
 		if status.head_commit != null:
 			if status.head_commit.local_snapshot != null:
-				return status.head_commit.local_snapshot.revision_display
+				return status.head_commit.local_snapshot.revision_spec
 			if status.head_commit.published_head != null:
-				return status.head_commit.published_head.revision_display
+				return status.head_commit.published_head.revision_spec
 		if status.sync_status != null and status.sync_status.synced_revision != null:
 			if not status.current_branch.is_empty():
 				return "%s.%s" % [status.current_branch, str(status.sync_status.synced_revision)]
@@ -33,11 +37,11 @@ static func get_base_revision_for_file(repo_relative_path: String) -> String:
 		return str(status.sync_status.synced_revision)
 
 	if status.head_commit != null and status.head_commit.published_head != null:
-		return status.head_commit.published_head.revision_display
+		return status.head_commit.published_head.revision_spec
 
 	# 3. Fall back to local snapshot
 	if status.head_commit != null and status.head_commit.local_snapshot != null:
-		return status.head_commit.local_snapshot.revision_display
+		return status.head_commit.local_snapshot.revision_spec
 
 	return ""
 

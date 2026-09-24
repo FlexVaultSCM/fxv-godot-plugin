@@ -1,0 +1,14 @@
+[configuration]
+
+entry_symbol = "fxv_vcs_library_init"
+compatibility_minimum = 4.1
+reloadable = false
+
+[libraries]
+
+windows.debug.x86_64 = "res://addons/flexvault_vcs/bin/libfxv_vcs.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://addons/flexvault_vcs/bin/libfxv_vcs.windows.template_release.x86_64.dll"
+linux.debug.x86_64 = "res://addons/flexvault_vcs/bin/libfxv_vcs.linux.template_debug.x86_64.so"
+linux.release.x86_64 = "res://addons/flexvault_vcs/bin/libfxv_vcs.linux.template_release.x86_64.so"
+macos.debug = "res://addons/flexvault_vcs/bin/libfxv_vcs.macos.template_debug.framework"
+macos.release = "res://addons/flexvault_vcs/bin/libfxv_vcs.macos.template_release.framework"
