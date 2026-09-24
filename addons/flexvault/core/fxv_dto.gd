@@ -134,7 +134,7 @@ class CommitRef extends RefCounted:
 				if commit.revision != null:
 					return "%s.%s.%s" % [commit.branch, str(commit.revision), str(commit.draft_revision)]
 				else:
-					return "%s.-.%s" % [commit.branch, str(commit.draft_revision)]
+					return "%s.unpublished.%s" % [commit.branch, str(commit.draft_revision)]
 			if commit.revision != null:
 				return "%s.%s" % [commit.branch, str(commit.revision)]
 			return commit.branch
