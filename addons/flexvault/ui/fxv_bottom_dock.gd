@@ -691,12 +691,24 @@ func _on_resolve_pressed(mode: String) -> void:
 		known.append(item.path)
 	var expanded := FxvMetaHelper.expand_with_companions(paths, repo_root, known) if paths.size() > 0 else []
 
+	# An empty selection resolves every conflict (FxvRunner._resolve_args appends --all), so the
+	# file list for the description comes from the currently-known conflicts instead.
+	var resolved_paths: Array = expanded.duplicate()
+	if resolved_paths.is_empty():
+		for item in FxvStateCache.get_instance().get_conflicted_files():
+			resolved_paths.append(item.path)
+
 	_status_label.text = "Resolving..."
 	_set_busy(true)
 	FxvRunner.resolve_async(mode, expanded, func(res: FxvRunner.FxvResult) -> void:
 		_set_busy(false)
 		if res.success:
 			_status_label.text = "Resolved conflict(s)."
+			if res.data is FxvDto.WorkspaceSyncPayload:
+				var target_rev: String = res.data.target_revision
+				if not target_rev.is_empty():
+					FxvStateCache.get_instance().record_resolve_description(
+						target_rev, FxvStateCache.describe_resolution(mode, resolved_paths))
 			request_refresh.emit()
 			EditorInterface.get_resource_filesystem().scan()
 		else:
@@ -773,7 +785,10 @@ func _on_history_loaded(res: FxvRunner.FxvResult, previously_selected_rev: Strin
 			item.set_text(0, rev_text)
 			item.set_text(1, entry.author_display_name if not entry.author_display_name.is_empty() else entry.author_id)
 			item.set_text(2, _format_timestamp(entry.timestamp_millis))
-			item.set_text(3, entry.description)
+			var description := entry.description
+			if description.is_empty():
+				description = cache.get_resolve_description(entry.revision_spec)
+			item.set_text(3, description)
 
 			if is_current:
 				var highlight_col := Color(0.4, 0.8, 1.0) # Accent cyan/blue
