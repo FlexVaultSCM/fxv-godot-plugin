@@ -112,6 +112,11 @@ static func _on_resolve(mode: String) -> void:
 				return
 			FxvRunner.resolve_async(mode, expanded, func(res: FxvRunner.FxvResult) -> void:
 				if res.success:
+					if res.data is FxvDto.WorkspaceSyncPayload:
+						var target_rev: String = res.data.target_revision
+						if not target_rev.is_empty():
+							FxvStateCache.get_instance().record_resolve_description(
+								target_rev, FxvStateCache.describe_resolution(mode, expanded))
 					FxvStateCache.get_instance().refresh()
 					EditorInterface.get_resource_filesystem().scan()
 				else:

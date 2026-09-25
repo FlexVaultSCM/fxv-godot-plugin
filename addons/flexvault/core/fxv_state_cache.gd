@@ -21,6 +21,13 @@ var _latest_status: FxvDto.StatusPayload = null
 var _is_refreshing: bool = false
 var _last_refresh_time: float = 0.0
 
+## Session-only: revision_spec -> synthesized description for a resolve commit. `fxv resolve`
+## always commits with no description (fxv-core has no CLI flag for one), so the History panel
+## would otherwise show a blank row for every conflict resolution. Keyed by revision_spec (the
+## CLI spec form, e.g. "main.-.3") since that's what `fxv resolve`'s JSON reports as
+## target_revision, matching CommitRef.revision_spec.
+var _resolve_descriptions: Dictionary = {}
+
 static func _normalize_cache_key(p: String) -> String:
 	var norm := FxvMetaHelper.normalize_separators(p)
 	if OS.get_name() == "Windows":
@@ -33,6 +40,38 @@ func clear() -> void:
 	_changed_files.clear()
 	_workspace_changes.clear()
 	_unpublished_changes.clear()
+	_resolve_descriptions.clear()
+
+func record_resolve_description(revision_spec: String, description: String) -> void:
+	if revision_spec.is_empty() or description.is_empty():
+		return
+	_resolve_descriptions[revision_spec] = description
+
+func get_resolve_description(revision_spec: String) -> String:
+	return _resolve_descriptions.get(revision_spec, "")
+
+const RESOLVE_DESCRIPTION_FILE_LIMIT := 5
+
+## Builds a description for a resolve action, e.g. "Resolved conflict (theirs): a.txt" or
+## "Resolved 3 conflicts (mine): a.txt, b.txt, c.txt". Long file lists are capped so the
+## description stays a single readable line.
+static func describe_resolution(mode: String, paths: Array) -> String:
+	var verb := "Undid resolution of" if mode == "undo" else "Resolved"
+	var side := ""
+	if mode == "mine":
+		side = " (mine)"
+	elif mode == "theirs":
+		side = " (theirs)"
+	var count_desc := "conflict" if paths.size() == 1 else "%d conflicts" % paths.size()
+
+	var shown: Array = []
+	for i in range(min(paths.size(), RESOLVE_DESCRIPTION_FILE_LIMIT)):
+		shown.append(str(paths[i]))
+	var file_list := ", ".join(shown)
+	if paths.size() > RESOLVE_DESCRIPTION_FILE_LIMIT:
+		file_list += " and %d more" % (paths.size() - RESOLVE_DESCRIPTION_FILE_LIMIT)
+
+	return "%s %s%s: %s" % [verb, count_desc, side, file_list]
 
 func is_refreshing() -> bool:
 	return _is_refreshing
