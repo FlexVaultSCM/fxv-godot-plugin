@@ -696,12 +696,29 @@ func _on_history_diff_previous_pressed() -> void:
 func _on_resolve_pressed(mode: String) -> void:
 	if not FxvSafetyGuards.ensure_safe_to_mutate("Resolve"):
 		return
-	var paths := _get_selected_paths()
-	var repo_root := FxvSettings.get_repository_root()
 	var known: Array = []
+	var conflicted: Dictionary = {}
 	for item in FxvStateCache.get_instance().get_changed_files():
 		known.append(item.path)
-	var expanded := FxvMetaHelper.expand_with_companions(paths, repo_root, known) if paths.size() > 0 else []
+		if item.conflict_state != null:
+			conflicted[item.path] = true
+
+	# Resolve only makes sense for files actually in conflict, but the buttons stay enabled
+	# for the whole selection (there's no cheap way to disable them per-row) - so a selection
+	# mixing conflicted and merely-changed files is common, e.g. selecting everything to sweep
+	# up every conflict at once. Silently drop the non-conflicted paths rather than sending
+	# them to `fxv resolve`, which errors on a file with nothing to resolve.
+	var paths: Array = []
+	for p in _get_selected_paths():
+		if conflicted.has(p):
+			paths.append(p)
+
+	if paths.is_empty():
+		_status_label.text = "No conflicted files selected."
+		return
+
+	var repo_root := FxvSettings.get_repository_root()
+	var expanded := FxvMetaHelper.expand_with_companions(paths, repo_root, known)
 
 	_status_label.text = "Resolving..."
 	_set_busy(true)
