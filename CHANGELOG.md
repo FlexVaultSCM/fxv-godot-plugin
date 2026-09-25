@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## [0.7.2](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.7.1...v0.7.2) (2026-09-25)
+
+
+### Bug Fixes
+
+* revision spec, selection loss, and conflict resolve scoping ([#24](https://github.com/FlexVaultSCM/fxv-godot-plugin/issues/24)) ([09f61d8](https://github.com/FlexVaultSCM/fxv-godot-plugin/commit/09f61d81f85e15afb870e38b372127748c7c3f31))
+
 ## [0.7.1](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.7.0...v0.7.1) (2026-09-24)
 
 
