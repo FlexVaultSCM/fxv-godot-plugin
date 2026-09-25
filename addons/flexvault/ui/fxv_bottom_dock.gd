@@ -347,8 +347,8 @@ func _on_state_changed() -> void:
 		_load_history(false)
 
 func _update_changes_tree() -> void:
-	# Rebuilding the tree (below) creates all-new TreeItems, which drops any prior selection
-	# outright - fine for a one-off refresh, but during periodic auto-refresh (every 10s) or a
+	# Rebuilding the tree (below) creates all-new TreeItems, which drops any prior selection.
+	# That's fine for a one-off refresh, but during periodic auto-refresh (every 10s) or a
 	# filesystem-change debounce it silently unselects whatever the user was mid-way through
 	# picking for a batch action (diff/revert). Snapshot the selected paths first and reselect
 	# the matching rows by path once the tree is rebuilt.
@@ -703,11 +703,11 @@ func _on_resolve_pressed(mode: String) -> void:
 		if item.conflict_state != null:
 			conflicted[item.path] = true
 
-	# Resolve only makes sense for files actually in conflict, but the buttons stay enabled
-	# for the whole selection (there's no cheap way to disable them per-row) - so a selection
-	# mixing conflicted and merely-changed files is common, e.g. selecting everything to sweep
-	# up every conflict at once. Silently drop the non-conflicted paths rather than sending
-	# them to `fxv resolve`, which errors on a file with nothing to resolve.
+	# Resolve only makes sense for files actually in conflict, but the buttons stay enabled for
+	# the whole selection since there's no cheap way to disable them per row. A selection mixing
+	# conflicted and merely-changed files is common, e.g. selecting everything to sweep up every
+	# conflict at once. Silently drop the non-conflicted paths rather than sending them to
+	# `fxv resolve`, which errors on a file with nothing to resolve.
 	var paths: Array = []
 	for p in _get_selected_paths():
 		if conflicted.has(p):
