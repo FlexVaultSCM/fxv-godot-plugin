@@ -347,6 +347,13 @@ func _on_state_changed() -> void:
 		_load_history(false)
 
 func _update_changes_tree() -> void:
+	# Rebuilding the tree (below) creates all-new TreeItems, which drops any prior selection
+	# outright - fine for a one-off refresh, but during periodic auto-refresh (every 10s) or a
+	# filesystem-change debounce it silently unselects whatever the user was mid-way through
+	# picking for a batch action (diff/revert). Snapshot the selected paths first and reselect
+	# the matching rows by path once the tree is rebuilt.
+	var previously_selected := _get_selected_paths()
+
 	_changes_tree.clear()
 	var root := _changes_tree.create_item()
 
@@ -375,11 +382,13 @@ func _update_changes_tree() -> void:
 		if f.conflict_state != null:
 			item.set_tooltip_text(1, f.conflict_state.description)
 
+		if previously_selected.has(f.path):
+			item.select(0)
+
 	var has_conflicts := cache.has_conflicts()
 	_resolve_mine_btn.visible = has_conflicts
 	_resolve_theirs_btn.visible = has_conflicts
 
-	# Rebuilding the tree above drops any prior selection.
 	_update_selection_dependent_buttons()
 
 ## Diff Against Previous only makes sense for a single file; Revert Selected works on any non-empty
