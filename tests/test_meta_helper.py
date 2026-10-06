@@ -38,6 +38,15 @@ def get_companion_uid_path(path):
         return path
     return path + ".uid"
 
+def is_absolute_path(path):
+    if not path:
+        return False
+    if path.startswith("/"):
+        return True
+    if len(path) >= 2 and path[0].isalpha() and path[1] == ":":
+        return True
+    return os.path.isabs(path)
+
 def to_repo_relative_path(path, repo_root, project_root=""):
     if not path:
         return ""
@@ -48,9 +57,9 @@ def to_repo_relative_path(path, repo_root, project_root=""):
         norm_path = norm_path[6:]
         if project_root:
             norm_proj = normalize_separators(project_root)
-            norm_path = normalize_separators(os.path.join(norm_proj, norm_path))
+            norm_path = f"{norm_proj}/{norm_path}" if norm_proj else norm_path
 
-    if os.path.isabs(norm_path):
+    if is_absolute_path(norm_path):
         if norm_path == norm_repo:
             return ""
         if norm_path.startswith(norm_repo + "/"):
