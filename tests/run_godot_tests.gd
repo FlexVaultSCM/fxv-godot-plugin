@@ -6,6 +6,7 @@ func _init():
 	test_version_guard()
 	test_meta_helper()
 	test_dto()
+	test_state_cache()
 	test_settings()
 	test_runner()
 	test_ui()
@@ -107,7 +108,85 @@ func test_dto():
 	assert(bl_payload.branches[0].branch == "main", "Branch name mismatch")
 	assert(bl_payload.branches[0].branch_type == "global", "Branch type mismatch")
 	assert(bl_payload.branches[0].published_head == "main.10", "Published head mismatch")
+	# CommitRef revision_spec tests
+	var pub_commit = FxvDto.CommitRef.from_dict({
+		"commit": {"branch": "main", "revision": 10, "type": "published"},
+		"description": "Initial"
+	})
+	assert(pub_commit.revision_spec == "main.10", "Published revision_spec mismatch: " + pub_commit.revision_spec)
+	assert(pub_commit.revision_display == "main.10", "Published revision_display mismatch: " + pub_commit.revision_display)
+
+	var draft_commit = FxvDto.CommitRef.from_dict({
+		"commit": {"branch": "main", "revision": 10, "type": "draft", "draft_revision": 2},
+		"description": "WIP"
+	})
+	assert(draft_commit.revision_spec == "main.10.2", "Draft revision_spec mismatch: " + draft_commit.revision_spec)
+	assert(draft_commit.revision_display == "main.10.2", "Draft revision_display mismatch: " + draft_commit.revision_display)
+
+	var unpub_commit = FxvDto.CommitRef.from_dict({
+		"commit": {"branch": "main", "type": "draft", "draft_revision": 3},
+		"description": ""
+	})
+	assert(unpub_commit.revision_spec == "main.-.3", "Unpublished draft revision_spec must use '-' CLI spec: " + unpub_commit.revision_spec)
+	assert(unpub_commit.revision_display == "main.unpublished.3", "Unpublished draft revision_display mismatch: " + unpub_commit.revision_display)
+
+	var raw_commit = FxvDto.CommitRef.from_dict({
+		"revision_spec": "explicit.spec.1",
+		"description": ""
+	})
+	assert(raw_commit.revision_spec == "explicit.spec.1", "Raw revision_spec override failed: " + raw_commit.revision_spec)
+
+	var empty_commit = FxvDto.CommitRef.new()
+	assert(empty_commit.revision_spec == "", "Empty CommitRef revision_spec should be empty: " + empty_commit.revision_spec)
+	assert(empty_commit.revision_display == "unknown", "Empty CommitRef revision_display should be unknown: " + empty_commit.revision_display)
+
+	var wsp = FxvDto.WorkspaceSyncPayload.from_dict({"target_revision": "main.1.1", "files_updated_count": 2})
+	assert(wsp.target_revision == "main.1.1", "WorkspaceSyncPayload target_revision mismatch")
 	print("FxvDto OK.")
+
+func test_state_cache():
+	print("Testing FxvStateCache...")
+	# Resolution description generation
+	var desc_mine = FxvStateCache.describe_resolution("mine", ["scenes/player.tscn"])
+	assert(desc_mine == "Resolved conflict (mine): scenes/player.tscn", "desc_mine mismatch: " + desc_mine)
+
+	var desc_theirs = FxvStateCache.describe_resolution("theirs", ["a.txt", "b.txt"])
+	assert(desc_theirs == "Resolved 2 conflicts (theirs): a.txt, b.txt", "desc_theirs mismatch: " + desc_theirs)
+
+	var desc_undo = FxvStateCache.describe_resolution("undo", ["a.txt"])
+	assert(desc_undo == "Undid resolution of conflict: a.txt", "desc_undo mismatch: " + desc_undo)
+
+	var long_paths = ["1.txt", "2.txt", "3.txt", "4.txt", "5.txt", "6.txt", "7.txt"]
+	var desc_long = FxvStateCache.describe_resolution("mine", long_paths)
+	assert(desc_long == "Resolved 7 conflicts (mine): 1.txt, 2.txt, 3.txt, 4.txt, 5.txt and 2 more", "desc_long mismatch: " + desc_long)
+
+	var desc_empty = FxvStateCache.describe_resolution("mine", [])
+	assert(desc_empty == "Resolved conflicts (mine)", "desc_empty mismatch: " + desc_empty)
+
+	var desc_dups = FxvStateCache.describe_resolution("theirs", ["a.txt", "a.txt", "b.txt"])
+	assert(desc_dups == "Resolved 2 conflicts (theirs): a.txt, b.txt", "desc_dups mismatch: " + desc_dups)
+
+	# Session-local description caching & retrieval
+	var cache = FxvStateCache.get_instance()
+	cache.clear()
+	assert(cache.get_resolve_description("main.1.1") == "", "Initial description should be empty")
+
+	cache.record_resolve_description("main.1.1", "Resolved conflict (mine): a.txt")
+	assert(cache.get_resolve_description("main.1.1") == "Resolved conflict (mine): a.txt", "Exact lookup mismatch")
+
+	# Cross-format alias testing: recording with .-. can be read by .unpublished. and vice-versa
+	cache.record_resolve_description("main.-.2", "Resolved conflict (theirs): b.txt")
+	assert(cache.get_resolve_description("main.-.2") == "Resolved conflict (theirs): b.txt", "Spec lookup mismatch")
+	assert(cache.get_resolve_description("main.unpublished.2") == "Resolved conflict (theirs): b.txt", "Display alias lookup mismatch")
+
+	cache.record_resolve_description("feat.unpublished.5", "Resolved conflict (mine): c.txt")
+	assert(cache.get_resolve_description("feat.-.5") == "Resolved conflict (mine): c.txt", "Spec alias lookup mismatch")
+
+	# Clearing
+	cache.clear()
+	assert(cache.get_resolve_description("main.1.1") == "", "Should be cleared")
+	assert(cache.get_resolve_description("main.-.2") == "", "Should be cleared")
+	print("FxvStateCache OK.")
 
 func test_settings():
 	print("Testing FxvSettings...")
@@ -138,6 +217,48 @@ func test_ui():
 	print("Testing FxvBottomDock UI...")
 	var dock = FxvBottomDock.new()
 	assert(dock != null, "Dock instantiation failed")
+	dock._build_ui()
+
+	# Test history rendering fallback to cached resolve description
+	var cache = FxvStateCache.get_instance()
+	cache.clear()
+	cache.record_resolve_description("main.-.3", "Resolved conflict (mine): player.tscn")
+
+	var normal_entry = FxvDto.CommitRef.from_dict({
+		"commit": {"branch": "main", "revision": 1, "type": "published"},
+		"description": "Standard commit",
+		"timestamp_millis_since_epoch_utc": 1700000000000,
+		"author_id": "alice"
+	})
+	var resolve_entry = FxvDto.CommitRef.from_dict({
+		"commit": {"branch": "main", "type": "draft", "draft_revision": 3},
+		"description": "",
+		"timestamp_millis_since_epoch_utc": 1700000001000,
+		"author_id": "bob"
+	})
+
+	var hp = FxvDto.HistoryPayload.new()
+	hp.entries.append(normal_entry)
+	hp.entries.append(resolve_entry)
+
+	var res = FxvRunner.FxvResult.new()
+	res.success = true
+	res.data = hp
+
+	dock._on_history_loaded(res, "")
+	var tree = dock._history_tree
+	assert(tree != null, "History tree missing")
+	var root = tree.get_root()
+	assert(root != null, "History tree root missing")
+	var item1 = root.get_first_child()
+	assert(item1 != null, "First item missing")
+	assert(item1.get_text(3) == "Standard commit", "Normal commit description mismatch: " + item1.get_text(3))
+
+	var item2 = item1.get_next()
+	assert(item2 != null, "Second item missing")
+	assert(item2.get_text(3) == "Resolved conflict (mine): player.tscn", "Resolve description fallback mismatch: " + item2.get_text(3))
+
+	cache.clear()
 	dock.free()
 	print("FxvBottomDock OK.")
 

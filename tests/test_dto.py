@@ -126,6 +126,59 @@ class TestDtoParsing(unittest.TestCase):
         self.assertEqual(b1["owner"], "alice")
         self.assertTrue(b1["local_only"])
 
+    def test_commit_ref_revision_spec_and_display(self):
+        def compute_revision_spec(commit_dict, raw_spec=""):
+            if raw_spec:
+                return raw_spec
+            if not commit_dict:
+                return ""
+            branch = commit_dict.get("branch", "")
+            rev = commit_dict.get("revision")
+            c_type = commit_dict.get("type", "")
+            draft_rev = commit_dict.get("draft_revision")
+            if c_type == "draft" and draft_rev is not None and int(draft_rev) > 0:
+                if rev is not None:
+                    return f"{branch}.{rev}.{draft_rev}"
+                else:
+                    return f"{branch}.-.{draft_rev}"
+            if rev is not None:
+                return f"{branch}.{rev}"
+            return branch
+
+        def compute_revision_display(commit_dict):
+            if not commit_dict:
+                return "unknown"
+            branch = commit_dict.get("branch", "")
+            rev = commit_dict.get("revision")
+            c_type = commit_dict.get("type", "")
+            draft_rev = commit_dict.get("draft_revision")
+            if c_type == "draft" and draft_rev is not None and int(draft_rev) > 0:
+                if rev is not None:
+                    return f"{branch}.{rev}.{draft_rev}"
+                else:
+                    return f"{branch}.unpublished.{draft_rev}"
+            if rev is not None:
+                return f"{branch}.{rev}"
+            return branch
+
+        # Published
+        c_pub = {"branch": "main", "revision": 10, "type": "published"}
+        self.assertEqual(compute_revision_spec(c_pub), "main.10")
+        self.assertEqual(compute_revision_display(c_pub), "main.10")
+
+        # Draft on published
+        c_draft = {"branch": "main", "revision": 10, "type": "draft", "draft_revision": 2}
+        self.assertEqual(compute_revision_spec(c_draft), "main.10.2")
+        self.assertEqual(compute_revision_display(c_draft), "main.10.2")
+
+        # Unpublished draft
+        c_unpub = {"branch": "main", "type": "draft", "draft_revision": 3}
+        self.assertEqual(compute_revision_spec(c_unpub), "main.-.3")
+        self.assertEqual(compute_revision_display(c_unpub), "main.unpublished.3")
+
+        # Raw override
+        self.assertEqual(compute_revision_spec(c_unpub, "custom.override"), "custom.override")
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -46,9 +46,25 @@ func record_resolve_description(revision_spec: String, description: String) -> v
 	if revision_spec.is_empty() or description.is_empty():
 		return
 	_resolve_descriptions[revision_spec] = description
+	if ".-." in revision_spec:
+		_resolve_descriptions[revision_spec.replace(".-.", ".unpublished.")] = description
+	elif ".unpublished." in revision_spec:
+		_resolve_descriptions[revision_spec.replace(".unpublished.", ".-.")] = description
 
 func get_resolve_description(revision_spec: String) -> String:
-	return _resolve_descriptions.get(revision_spec, "")
+	if revision_spec.is_empty():
+		return ""
+	if _resolve_descriptions.has(revision_spec):
+		return _resolve_descriptions[revision_spec]
+	if ".unpublished." in revision_spec:
+		var alt := revision_spec.replace(".unpublished.", ".-.")
+		if _resolve_descriptions.has(alt):
+			return _resolve_descriptions[alt]
+	elif ".-." in revision_spec:
+		var alt := revision_spec.replace(".-.", ".unpublished.")
+		if _resolve_descriptions.has(alt):
+			return _resolve_descriptions[alt]
+	return ""
 
 const RESOLVE_DESCRIPTION_FILE_LIMIT := 5
 
@@ -62,14 +78,24 @@ static func describe_resolution(mode: String, paths: Array) -> String:
 		side = " (mine)"
 	elif mode == "theirs":
 		side = " (theirs)"
-	var count_desc := "conflict" if paths.size() == 1 else "%d conflicts" % paths.size()
+
+	var unique_paths: Array = []
+	for p in paths:
+		var s := str(p).strip_edges()
+		if not s.is_empty() and not unique_paths.has(s):
+			unique_paths.append(s)
+
+	if unique_paths.is_empty():
+		return "%s conflicts%s" % [verb, side]
+
+	var count_desc := "conflict" if unique_paths.size() == 1 else "%d conflicts" % unique_paths.size()
 
 	var shown: Array = []
-	for i in range(min(paths.size(), RESOLVE_DESCRIPTION_FILE_LIMIT)):
-		shown.append(str(paths[i]))
+	for i in range(min(unique_paths.size(), RESOLVE_DESCRIPTION_FILE_LIMIT)):
+		shown.append(unique_paths[i])
 	var file_list := ", ".join(shown)
-	if paths.size() > RESOLVE_DESCRIPTION_FILE_LIMIT:
-		file_list += " and %d more" % (paths.size() - RESOLVE_DESCRIPTION_FILE_LIMIT)
+	if unique_paths.size() > RESOLVE_DESCRIPTION_FILE_LIMIT:
+		file_list += " and %d more" % (unique_paths.size() - RESOLVE_DESCRIPTION_FILE_LIMIT)
 
 	return "%s %s%s: %s" % [verb, count_desc, side, file_list]
 

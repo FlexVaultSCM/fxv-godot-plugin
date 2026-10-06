@@ -121,6 +121,25 @@ class CommitRef extends RefCounted:
 	var timestamp_millis: int = 0
 	var author_id: String = ""
 	var author_display_name: String = ""
+	var raw_revision_spec: String = ""
+
+	## The CLI revision spec form (e.g. "main.1", "main.1.2", "main.-.3"), matching fxv-core's
+	## target_revision representation. Unlike revision_display, unpublished drafts keep the
+	## CLI's "-" placeholder so they round-trip cleanly with CLI commands and caches.
+	var revision_spec: String:
+		get:
+			if not raw_revision_spec.is_empty():
+				return raw_revision_spec
+			if commit == null:
+				return ""
+			if commit.type == "draft" and commit.draft_revision != null and int(commit.draft_revision) > 0:
+				if commit.revision != null:
+					return "%s.%s.%s" % [commit.branch, str(commit.revision), str(commit.draft_revision)]
+				else:
+					return "%s.-.%s" % [commit.branch, str(commit.draft_revision)]
+			if commit.revision != null:
+				return "%s.%s" % [commit.branch, str(commit.revision)]
+			return commit.branch
 
 	var revision_display: String:
 		get:
@@ -148,6 +167,7 @@ class CommitRef extends RefCounted:
 		cr.timestamp_millis = int(d.get("timestamp_millis_since_epoch_utc", 0))
 		cr.author_id = d.get("author_id", "")
 		cr.author_display_name = d.get("author_display_name", "")
+		cr.raw_revision_spec = str(d.get("revision_spec", ""))
 		return cr
 
 

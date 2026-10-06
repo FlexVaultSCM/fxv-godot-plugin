@@ -788,6 +788,8 @@ func _on_history_loaded(res: FxvRunner.FxvResult, previously_selected_rev: Strin
 			var description := entry.description
 			if description.is_empty():
 				description = cache.get_resolve_description(entry.revision_spec)
+				if description.is_empty():
+					description = cache.get_resolve_description(entry.revision_display)
 			item.set_text(3, description)
 
 			if is_current:
