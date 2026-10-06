@@ -18,7 +18,18 @@ struct Op {
 };
 
 PackedStringArray split_lines(const String &p_text) {
+	if (p_text.is_empty()) {
+		return PackedStringArray();
+	}
 	String normalized = p_text.replace("\r\n", "\n");
+	if (normalized.ends_with("\n")) {
+		normalized = normalized.substr(0, normalized.length() - 1);
+	}
+	if (normalized.is_empty()) {
+		PackedStringArray single_empty;
+		single_empty.push_back("");
+		return single_empty;
+	}
 	// allow_empty=true so blank lines stay in the comparison instead of collapsing runs of
 	// consecutive newlines.
 	return normalized.split("\n", true);
@@ -95,9 +106,8 @@ TypedArray<Dictionary> build_hunks(EditorVCSInterface &p_self, const String &p_o
 	int op_count = (int)ops.size();
 	int idx = 0;
 
-	// One hunk per contiguous run of changes plus fixed leading/trailing context. Unlike a
-	// real diff tool this doesn't merge two change runs that sit close together into a single
-	// hunk - a cosmetic gap at worst, never a correctness issue.
+	// Build hunks with leading/trailing context, coalescing close change runs to prevent
+	// duplicate or overlapping context lines in the editor diff view.
 	while (idx < op_count) {
 		if (ops[idx].type == OpType::EQUAL) {
 			idx++;
@@ -106,8 +116,20 @@ TypedArray<Dictionary> build_hunks(EditorVCSInterface &p_self, const String &p_o
 
 		int run_start = idx;
 		int run_end = idx;
-		while (run_end < op_count && ops[run_end].type != OpType::EQUAL) {
-			run_end++;
+		while (run_end < op_count) {
+			if (ops[run_end].type != OpType::EQUAL) {
+				run_end++;
+			} else {
+				int lookahead = run_end;
+				while (lookahead < op_count && ops[lookahead].type == OpType::EQUAL) {
+					lookahead++;
+				}
+				if (lookahead < op_count && (lookahead - run_end) <= 2 * context) {
+					run_end = lookahead;
+				} else {
+					break;
+				}
+			}
 		}
 
 		int context_start = std::max(0, run_start - context);

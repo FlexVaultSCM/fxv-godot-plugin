@@ -75,6 +75,9 @@ jobs:
             console.log('All required plugin files present.');
           "
 
+      - name: Run test suite
+        run: python -m unittest discover tests
+
       - name: Validate archive packaging (dry-run)
         run: |
           version=$(node -e "const content = require('fs').readFileSync('addons/flexvault/plugin.cfg', 'utf8'); console.log(content.match(/version\\s*=\\s*\"([^\"]+)\"/)[1]);")
@@ -83,6 +86,7 @@ jobs:
           test -s "$archive_name"
           sha256sum "$archive_name"
           echo "Packaging dry-run successful: $archive_name"
+
 
   build-native-vcs:
     name: Build native VCS extension (${{ matrix.platform }})

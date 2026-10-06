@@ -3,7 +3,11 @@
 #include "fxv_line_diff.h"
 #include "fxv_process.h"
 
+#include <godot_cpp/classes/editor_file_system.hpp>
+#include <godot_cpp/classes/editor_interface.hpp>
+#include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/variant/array.hpp>
 
 using namespace godot;
@@ -125,8 +129,25 @@ void FlexVault::_bind_methods() {
 	// Nothing script-facing to expose beyond the EditorVCSInterface overrides below.
 }
 
+void trigger_filesystem_scan() {
+	EditorInterface *ei = Object::cast_to<EditorInterface>(Engine::get_singleton()->get_singleton("EditorInterface"));
+	if (ei != nullptr) {
+		EditorFileSystem *efs = ei->get_resource_filesystem();
+		if (efs != nullptr) {
+			efs->scan();
+		}
+	}
+}
+
 bool FlexVault::_initialize(const String &p_project_path) {
-	repo_project_path = p_project_path;
+	if (!p_project_path.is_empty()) {
+		repo_project_path = p_project_path.replace("\\", "/").trim_suffix("/");
+	} else {
+		ProjectSettings *ps = ProjectSettings::get_singleton();
+		if (ps != nullptr) {
+			repo_project_path = ps->globalize_path("res://").replace("\\", "/").trim_suffix("/");
+		}
+	}
 
 	PackedStringArray args;
 	args.push_back("status");
@@ -198,7 +219,12 @@ void FlexVault::_discard_file(const String &p_file_path) {
 	PackedStringArray args;
 	args.push_back("revert");
 	args.push_back(p_file_path);
-	fxv::run(args);
+	fxv::CliResult res = fxv::run(args);
+	if (!res.success) {
+		popup_error("Revert failed for '" + p_file_path + "': " + res.error_message);
+	} else {
+		trigger_filesystem_scan();
+	}
 }
 
 void FlexVault::_commit(const String &p_msg) {
@@ -208,7 +234,10 @@ void FlexVault::_commit(const String &p_msg) {
 		args.push_back("-d");
 		args.push_back(p_msg);
 	}
-	fxv::run(args);
+	fxv::CliResult res = fxv::run(args);
+	if (!res.success) {
+		popup_error("Snapshot failed: " + res.error_message);
+	}
 }
 
 TypedArray<Dictionary> FlexVault::_get_diff(const String &p_identifier, int32_t p_area) {
@@ -228,23 +257,59 @@ TypedArray<Dictionary> FlexVault::_get_diff(const String &p_identifier, int32_t 
 	}
 	Dictionary status = status_res.data;
 
-	String base_rev = base_revision_for_file(status, p_identifier);
-	if (base_rev.is_empty()) {
-		return result;
+	Array files = status.get("files", Array());
+	String workspace_state = "";
+	for (int i = 0; i < files.size(); i++) {
+		Dictionary f = files[i];
+		if (String(f.get("path", "")) == p_identifier) {
+			workspace_state = String(f.get("workspace_state", "")).to_lower();
+			break;
+		}
 	}
 
-	// A failed cat (missing binary, bad revision, transient error) is not the same as "this
-	// file is new" - surfacing it as an all-insertions diff would be misleading, so bail out
-	// with no diff instead of guessing.
 	String old_content;
-	if (!fxv::cat(p_identifier, base_rev, old_content)) {
-		return result;
-	}
-
 	String new_content;
-	Ref<FileAccess> f = FileAccess::open(repo_project_path.path_join(p_identifier), FileAccess::READ);
-	if (f.is_valid()) {
-		new_content = f->get_as_text();
+
+	if (workspace_state == "added") {
+		// Newly added file: base content is empty, working copy contains all insertions.
+		old_content = "";
+		String file_path = repo_project_path.is_empty() ? p_identifier : repo_project_path.path_join(p_identifier);
+		Ref<FileAccess> f = FileAccess::open(file_path, FileAccess::READ);
+		if (!f.is_valid()) {
+			f = FileAccess::open("res://" + p_identifier, FileAccess::READ);
+		}
+		if (f.is_valid()) {
+			new_content = f->get_as_text();
+		}
+	} else if (workspace_state == "deleted") {
+		// Deleted file: working copy is gone, base content contains all deletions.
+		new_content = "";
+		String base_rev = base_revision_for_file(status, p_identifier);
+		if (base_rev.is_empty() || !fxv::cat(p_identifier, base_rev, old_content)) {
+			return result;
+		}
+	} else {
+		// Modified or conflicted:
+		String base_rev = base_revision_for_file(status, p_identifier);
+		if (base_rev.is_empty()) {
+			return result;
+		}
+
+		// A failed cat (missing binary, bad revision, transient error) is not the same as "this
+		// file is new" - surfacing it as an all-insertions diff would be misleading, so bail out
+		// with no diff instead of guessing.
+		if (!fxv::cat(p_identifier, base_rev, old_content)) {
+			return result;
+		}
+
+		String file_path = repo_project_path.is_empty() ? p_identifier : repo_project_path.path_join(p_identifier);
+		Ref<FileAccess> f = FileAccess::open(file_path, FileAccess::READ);
+		if (!f.is_valid()) {
+			f = FileAccess::open("res://" + p_identifier, FileAccess::READ);
+		}
+		if (f.is_valid()) {
+			new_content = f->get_as_text();
+		}
 	}
 
 	Dictionary diff_file = create_diff_file(p_identifier, p_identifier);
@@ -272,6 +337,9 @@ TypedArray<Dictionary> FlexVault::_get_previous_commits(int32_t p_max_commits) {
 	for (int i = 0; i < entries.size(); i++) {
 		Dictionary e = entries[i];
 		String msg = e.get("description", "");
+		if (msg.strip_edges().is_empty()) {
+			msg = "(no description)";
+		}
 		String author = e.get("author_display_name", "");
 		if (author.is_empty()) {
 			author = e.get("author_id", "");
@@ -340,7 +408,12 @@ bool FlexVault::_checkout_branch(const String &p_branch_name) {
 	args.push_back(p_branch_name);
 
 	fxv::CliResult res = fxv::run(args);
-	return res.success;
+	if (!res.success) {
+		popup_error("Could not switch to branch '" + p_branch_name + "': " + res.error_message);
+		return false;
+	}
+	trigger_filesystem_scan();
+	return true;
 }
 
 void FlexVault::_set_credentials(const String &p_username, const String &p_password, const String &p_ssh_public_key_path, const String &p_ssh_private_key_path, const String &p_ssh_passphrase) {
