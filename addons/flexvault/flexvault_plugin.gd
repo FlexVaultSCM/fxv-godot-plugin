@@ -188,9 +188,8 @@ func _on_request_refresh() -> void:
 
 func _on_timer_refresh() -> void:
 	# Skip this tick rather than poll status while a snapshot is still writing its draft-branch
-	# head - reading concurrently can observe a transient "commit not found" error. The next
-	# 10s tick (or the refresh right after the snapshot's own filesystem_changed) picks it up.
-	if _snapshot_in_flight:
+	# head or a fetch is currently in flight.
+	if _snapshot_in_flight or _fetch_in_flight:
 		return
 	if FxvSettings.is_auto_refresh_enabled() and FxvSettings.is_in_flexvault_repository():
 		_state_cache.refresh(true, false) # skip remote metadata check on periodic poll, keep disk scan enabled
@@ -302,7 +301,7 @@ func _on_periodic_fetch_timer_timeout() -> void:
 	if _last_periodic_fetch_time_msec >= 0 and (now_msec - _last_periodic_fetch_time_msec) < int(period_seconds * 1000.0):
 		return
 
-	if _fetch_in_flight:
+	if _fetch_in_flight or _snapshot_in_flight or _state_cache.is_refreshing():
 		return
 
 	_trigger_periodic_fetch()
@@ -315,7 +314,8 @@ func _trigger_periodic_fetch() -> void:
 		if res.success:
 			var payload := res.data as FxvDto.FetchPayload
 			if payload != null and payload.bytes_downloaded > 0:
-				_state_cache.refresh()
+				# Remote metadata was already fetched; skip remote update during subsequent status refresh
+				_state_cache.refresh(true, false)
 		else:
 			push_warning("[FlexVault] Periodic fetch failed (non-fatal): " + res.error_message)
 	)
@@ -328,10 +328,9 @@ func _trigger_auto_snapshot(description: String, on_success: Callable = Callable
 	var now_msec := Time.get_ticks_msec()
 	if _last_auto_snapshot_time_msec >= 0 and (now_msec - _last_auto_snapshot_time_msec) < int(AUTO_SNAPSHOT_DEBOUNCE_SECONDS * 1000.0):
 		return
-	if _snapshot_in_flight:
-		# Another auto-snapshot is still running - skip this one rather than run two
-		# `fxv snapshot` processes concurrently against the same workspace. Same best-effort
-		# spirit as the debounce above.
+	if _snapshot_in_flight or _fetch_in_flight:
+		# Another auto-snapshot or fetch is still running - skip this one rather than run
+		# concurrent processes against the same workspace.
 		return
 	_last_auto_snapshot_time_msec = now_msec
 	_snapshot_in_flight = true
