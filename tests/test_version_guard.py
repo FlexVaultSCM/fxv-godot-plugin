@@ -86,6 +86,9 @@ class TestVersionGuard(unittest.TestCase):
         ok, _ = check_version("0.12.0", self.min_ver, self.max_ver)
         self.assertTrue(ok)
 
+        ok, _ = check_version("0.12.1", self.min_ver, self.max_ver)
+        self.assertTrue(ok)
+
         ok, _ = check_version("0.10.1", self.min_ver, self.max_ver)
         self.assertFalse(ok)
 
@@ -96,6 +99,9 @@ class TestVersionGuard(unittest.TestCase):
         self.assertFalse(ok)
 
         ok, _ = check_version("0.13.0", self.min_ver, self.max_ver)
+        self.assertFalse(ok)
+
+        ok, _ = check_version("0.13.0-rc1", self.min_ver, self.max_ver)
         self.assertFalse(ok)
 
 if __name__ == "__main__":

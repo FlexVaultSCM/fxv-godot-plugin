@@ -23,8 +23,15 @@ func test_version_guard():
 	var res = FxvVersionGuard.check_version("0.11.0")
 	assert(res["compatible"] == true, "0.11.0 should be compatible")
 
+	var res_12 = FxvVersionGuard.check_version("0.12.0")
+	assert(res_12["compatible"] == true, "0.12.0 should be compatible")
+
 	var res_old = FxvVersionGuard.check_version("0.10.1")
 	assert(res_old["compatible"] == false, "0.10.1 should be incompatible")
+
+	var res_high = FxvVersionGuard.check_version("0.13.0")
+	assert(res_high["compatible"] == false, "0.13.0 should be incompatible")
+	assert(res_high["error"].find("update the FlexVault Godot plugin") != -1, "High version error message mismatch: " + res_high["error"])
 
 	FxvVersionGuard.set_incompatible("custom error")
 	assert(FxvVersionGuard.is_compatible() == false, "Should be marked incompatible")
