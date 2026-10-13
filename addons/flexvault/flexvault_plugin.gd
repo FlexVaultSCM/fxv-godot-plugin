@@ -49,6 +49,12 @@ const PERIODIC_SNAPSHOT_CHECK_INTERVAL_SECONDS := 30.0
 var _periodic_snapshot_timer: Timer
 var _last_periodic_snapshot_time_msec: int = -1
 
+## Periodic fetch to pull remote metadata. Configured via FxvSettings.get_fetch_period_seconds() (0 disables it).
+const PERIODIC_FETCH_CHECK_INTERVAL_SECONDS := 10.0
+var _periodic_fetch_timer: Timer
+var _last_periodic_fetch_time_msec: int = -1
+var _fetch_in_flight: bool = false
+
 func _enter_tree() -> void:
 	# Must run before anything below that could trigger an auto-snapshot (timers, filesystem/
 	# reimport signals) - once a path is captured into a snapshot, adding it to .fxvignore no
@@ -110,6 +116,14 @@ func _enter_tree() -> void:
 	# editor open; wait a full interval first like any other periodic tick.
 	_last_periodic_snapshot_time_msec = Time.get_ticks_msec()
 
+	_periodic_fetch_timer = Timer.new()
+	_periodic_fetch_timer.wait_time = PERIODIC_FETCH_CHECK_INTERVAL_SECONDS
+	_periodic_fetch_timer.autostart = true
+	_periodic_fetch_timer.one_shot = false
+	_periodic_fetch_timer.timeout.connect(_on_periodic_fetch_timer_timeout)
+	add_child(_periodic_fetch_timer)
+	_last_periodic_fetch_time_msec = Time.get_ticks_msec()
+
 	_snapshot_watchdog_timer = Timer.new()
 	_snapshot_watchdog_timer.wait_time = SNAPSHOT_WATCHDOG_SECONDS
 	_snapshot_watchdog_timer.one_shot = true
@@ -143,6 +157,9 @@ func _exit_tree() -> void:
 
 	if _periodic_snapshot_timer != null:
 		_periodic_snapshot_timer.queue_free()
+
+	if _periodic_fetch_timer != null:
+		_periodic_fetch_timer.queue_free()
 
 	if _snapshot_watchdog_timer != null:
 		_snapshot_watchdog_timer.queue_free()
@@ -271,6 +288,36 @@ func _on_periodic_snapshot_timer_timeout() -> void:
 	# waiting out the full interval again.
 	_trigger_auto_snapshot("Auto-snapshot (periodic, pending changes)", func() -> void:
 		_last_periodic_snapshot_time_msec = Time.get_ticks_msec()
+	)
+
+func _on_periodic_fetch_timer_timeout() -> void:
+	if not FxvSettings.is_in_flexvault_repository():
+		return
+
+	var period_seconds := FxvSettings.get_fetch_period_seconds()
+	if period_seconds <= 0.0:
+		return
+
+	var now_msec := Time.get_ticks_msec()
+	if _last_periodic_fetch_time_msec >= 0 and (now_msec - _last_periodic_fetch_time_msec) < int(period_seconds * 1000.0):
+		return
+
+	if _fetch_in_flight:
+		return
+
+	_trigger_periodic_fetch()
+
+func _trigger_periodic_fetch() -> void:
+	_fetch_in_flight = true
+	_last_periodic_fetch_time_msec = Time.get_ticks_msec()
+	FxvRunner.fetch_async(func(res: FxvRunner.FxvResult) -> void:
+		_fetch_in_flight = false
+		if res.success:
+			var payload := res.data as FxvDto.FetchPayload
+			if payload != null and payload.bytes_downloaded > 0:
+				_state_cache.refresh()
+		else:
+			push_warning("[FlexVault] Periodic fetch failed (non-fatal): " + res.error_message)
 	)
 
 ## Fires an `fxv snapshot`, guarded by the shared debounce and in-flight checks so every

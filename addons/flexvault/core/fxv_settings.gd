@@ -10,6 +10,7 @@ const SETTING_AUTO_REFRESH: String = "version_control/flexvault/auto_refresh"
 const SETTING_TIMEOUT_SECONDS: String = "version_control/flexvault/timeout_seconds"
 const SETTING_DEFAULT_RESOLVE_PREFERENCE: String = "version_control/flexvault/default_resolve_preference"
 const SETTING_PERIODIC_SNAPSHOT_SECONDS: String = "version_control/flexvault/periodic_snapshot_seconds"
+const SETTING_FETCH_PERIOD_SECONDS: String = "version_control/flexvault/fetch_period_seconds"
 
 const RESOLVE_PREFERENCE_ASK: int = 0
 const RESOLVE_PREFERENCE_MINE: int = 1
@@ -79,6 +80,15 @@ static func register_settings() -> void:
 		"hint_string": "0,3600,1,suffix:s"
 	})
 
+	if not editor_settings.has_setting(SETTING_FETCH_PERIOD_SECONDS):
+		editor_settings.set_setting(SETTING_FETCH_PERIOD_SECONDS, 120.0)
+	editor_settings.add_property_info({
+		"name": SETTING_FETCH_PERIOD_SECONDS,
+		"type": TYPE_FLOAT,
+		"hint": PROPERTY_HINT_RANGE,
+		"hint_string": "0,3600,1,suffix:s"
+	})
+
 
 static func get_diff_tool() -> String:
 	if not Engine.is_editor_hint():
@@ -130,6 +140,17 @@ static func get_periodic_snapshot_seconds() -> float:
 	if editor_settings != null and editor_settings.has_setting(SETTING_PERIODIC_SNAPSHOT_SECONDS):
 		return float(editor_settings.get_setting(SETTING_PERIODIC_SNAPSHOT_SECONDS))
 	return 300.0
+
+
+## Seconds between periodic fxv fetch attempts to pull remote metadata. 0
+## disables periodic fetch.
+static func get_fetch_period_seconds() -> float:
+	if not Engine.is_editor_hint():
+		return 120.0
+	var editor_settings := EditorInterface.get_editor_settings()
+	if editor_settings != null and editor_settings.has_setting(SETTING_FETCH_PERIOD_SECONDS):
+		return float(editor_settings.get_setting(SETTING_FETCH_PERIOD_SECONDS))
+	return 120.0
 
 
 static func get_custom_binary_path() -> String:

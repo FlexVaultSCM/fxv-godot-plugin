@@ -114,6 +114,15 @@ func test_dto():
 	assert(bl_payload.branches[0].branch == "main", "Branch name mismatch")
 	assert(bl_payload.branches[0].branch_type == "global", "Branch type mismatch")
 	assert(bl_payload.branches[0].published_head == "main.10", "Published head mismatch")
+
+	# Fetch payload DTO test
+	var fetch_dict = {
+		"bytes_downloaded": 1024,
+		"repaired_files": ["corrupt.bin"]
+	}
+	var fetch_payload = FxvDto.FetchPayload.from_dict(fetch_dict)
+	assert(fetch_payload.bytes_downloaded == 1024, "Bytes downloaded mismatch")
+	assert(fetch_payload.repaired_files == ["corrupt.bin"], "Repaired files mismatch")
 	print("FxvDto OK.")
 
 func test_settings():
@@ -124,6 +133,8 @@ func test_settings():
 	assert(not repo_root.is_empty(), "Repository root should not be empty")
 	var bin_path = FxvSettings.get_effective_binary_path()
 	assert(not bin_path.is_empty(), "Effective binary path should not be empty")
+	var fetch_period = FxvSettings.get_fetch_period_seconds()
+	assert(fetch_period == 120.0, "Default fetch period should be 120.0: " + str(fetch_period))
 	print("FxvSettings OK.")
 
 func test_runner():
@@ -139,6 +150,11 @@ func test_runner():
 
 	var empty_plugin_args = FxvRunner.build_integration_register_args("/tmp/ws", "", "0.11.0", "0.13.0")
 	assert(not empty_plugin_args.has("--plugin-version"), "Empty plugin version should be omitted: " + str(empty_plugin_args))
+
+	var fetch_args = FxvRunner.build_fetch_args()
+	assert(fetch_args == ["fetch"], "Fetch args mismatch: " + str(fetch_args))
+	var fetch_repair_args = FxvRunner.build_fetch_args(true)
+	assert(fetch_repair_args == ["fetch", "--repair"], "Fetch repair args mismatch: " + str(fetch_repair_args))
 	print("FxvRunner OK.")
 
 func test_ui():

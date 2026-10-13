@@ -126,6 +126,31 @@ class TestDtoParsing(unittest.TestCase):
         self.assertEqual(b1["owner"], "alice")
         self.assertTrue(b1["local_only"])
 
+    def test_parse_fetch_payload(self):
+        sample_fetch_json = """{
+            "program": {
+                "name": "fxv",
+                "version": "0.12.0",
+                "executable": "fxv.exe",
+                "arguments": ["fetch", "--format", "json"],
+                "invoked_at": "2026-10-13T12:00:00Z"
+            },
+            "message": {
+                "kind": "fetch",
+                "version": "1.0",
+                "payload": {
+                    "bytes_downloaded": 42000,
+                    "repaired_files": ["corrupt.bin"]
+                }
+            }
+        }"""
+        data = json.loads(sample_fetch_json)
+        msg = data["message"]
+        self.assertEqual(msg["kind"], "fetch")
+        payload = msg["payload"]
+        self.assertEqual(payload["bytes_downloaded"], 42000)
+        self.assertEqual(payload["repaired_files"], ["corrupt.bin"])
+
 if __name__ == "__main__":
     unittest.main()
 

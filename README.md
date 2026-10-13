@@ -34,6 +34,7 @@ Godot Engine 4.x Editor Version Control plugin for [FlexVault](https://fxv.dev).
 Settings can be customized in **Editor -> Editor Settings -> Version Control -> FlexVault**:
 * **CLI Executable Path**: Set a custom path to `fxv.exe` (Windows) or `fxv` (Linux/macOS), or rely on auto-discovery from standard paths and `PATH`.
 * **Diff Tool**: Set a custom visual diff utility (or rely on `FXV_DIFF_TOOL` / `DIFF` environment variables or auto-detection of VS Code, Beyond Compare, KDiff3, etc.).
+* **Fetch Period**: Interval in seconds between periodic background `fxv fetch` attempts to pull remote metadata (defaults to 120 seconds; set to 0 to disable).
 
 ---
 
