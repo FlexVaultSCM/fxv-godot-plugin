@@ -361,3 +361,17 @@ class BranchListPayload extends RefCounted:
 					blp.branches.append(BranchInfo.from_dict(b))
 		return blp
 
+
+class FetchPayload extends RefCounted:
+	var bytes_downloaded: int = 0
+	var repaired_files: Array[String] = []
+
+	static func from_dict(d: Dictionary) -> FetchPayload:
+		var p := FetchPayload.new()
+		if d.is_empty(): return p
+		p.bytes_downloaded = int(d.get("bytes_downloaded", 0))
+		if d.has("repaired_files") and d["repaired_files"] is Array:
+			for rf in d["repaired_files"]:
+				p.repaired_files.append(str(rf))
+		return p
+

@@ -511,3 +511,26 @@ static func branch_switch_async(branch: String, callback: Callable) -> void:
 		callback.call(res)
 	)
 
+
+static func build_fetch_args(repair: bool = false) -> Array:
+	var args := ["fetch"]
+	if repair:
+		args.append("--repair")
+	return args
+
+
+static func fetch(repair: bool = false) -> FxvResult:
+	var res := run_command(build_fetch_args(repair))
+	if res.success and res.data is Dictionary:
+		res.data = FxvDto.FetchPayload.from_dict(res.data)
+	return res
+
+
+static func fetch_async(callback: Callable, repair: bool = false) -> void:
+	run_command_async(build_fetch_args(repair), func(res: FxvResult) -> void:
+		if res.success and res.data is Dictionary:
+			res.data = FxvDto.FetchPayload.from_dict(res.data)
+		if callback.is_valid():
+			callback.call(res)
+	)
+

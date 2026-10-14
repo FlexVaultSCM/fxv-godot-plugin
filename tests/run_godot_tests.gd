@@ -23,8 +23,15 @@ func test_version_guard():
 	var res = FxvVersionGuard.check_version("0.11.0")
 	assert(res["compatible"] == true, "0.11.0 should be compatible")
 
+	var res_12 = FxvVersionGuard.check_version("0.12.0")
+	assert(res_12["compatible"] == true, "0.12.0 should be compatible")
+
 	var res_old = FxvVersionGuard.check_version("0.10.1")
 	assert(res_old["compatible"] == false, "0.10.1 should be incompatible")
+
+	var res_high = FxvVersionGuard.check_version("0.13.0")
+	assert(res_high["compatible"] == false, "0.13.0 should be incompatible")
+	assert(res_high["error"].find("update the FlexVault Godot plugin") != -1, "High version error message mismatch: " + res_high["error"])
 
 	FxvVersionGuard.set_incompatible("custom error")
 	assert(FxvVersionGuard.is_compatible() == false, "Should be marked incompatible")
@@ -32,13 +39,13 @@ func test_version_guard():
 	FxvVersionGuard.reset_cached_version()
 
 	assert(FxvVersionGuard.get_min_version_string() == "0.11.0", "Min version string mismatch")
-	assert(FxvVersionGuard.get_max_version_string() == "0.12.0", "Max version string mismatch")
+	assert(FxvVersionGuard.get_max_version_string() == "0.13.0", "Max version string mismatch")
 
 	# Regression: SemVer's _to_string() override must actually be dispatched to by .to_string(),
 	# not fall back to Object's default "<RefCounted#...>" representation.
 	var res_low = FxvVersionGuard.check_version("0.5.0")
 	assert(res_low["error"].find("RefCounted") == -1, "check_version() error leaked default Object repr: " + res_low["error"])
-	assert(res_low["error"].find("0.11.0") != -1 and res_low["error"].find("0.12.0") != -1, "check_version() error missing version bounds: " + res_low["error"])
+	assert(res_low["error"].find("0.11.0") != -1 and res_low["error"].find("0.13.0") != -1, "check_version() error missing version bounds: " + res_low["error"])
 	print("FxvVersionGuard OK.")
 
 func test_meta_helper():
@@ -107,6 +114,15 @@ func test_dto():
 	assert(bl_payload.branches[0].branch == "main", "Branch name mismatch")
 	assert(bl_payload.branches[0].branch_type == "global", "Branch type mismatch")
 	assert(bl_payload.branches[0].published_head == "main.10", "Published head mismatch")
+
+	# Fetch payload DTO test
+	var fetch_dict = {
+		"bytes_downloaded": 1024,
+		"repaired_files": ["corrupt.bin"]
+	}
+	var fetch_payload = FxvDto.FetchPayload.from_dict(fetch_dict)
+	assert(fetch_payload.bytes_downloaded == 1024, "Bytes downloaded mismatch")
+	assert(fetch_payload.repaired_files == ["corrupt.bin"], "Repaired files mismatch")
 	print("FxvDto OK.")
 
 func test_settings():
@@ -117,6 +133,8 @@ func test_settings():
 	assert(not repo_root.is_empty(), "Repository root should not be empty")
 	var bin_path = FxvSettings.get_effective_binary_path()
 	assert(not bin_path.is_empty(), "Effective binary path should not be empty")
+	var fetch_period = FxvSettings.get_fetch_period_seconds()
+	assert(fetch_period == 120.0, "Default fetch period should be 120.0: " + str(fetch_period))
 	print("FxvSettings OK.")
 
 func test_runner():
@@ -124,20 +142,40 @@ func test_runner():
 	var has_checked = FxvRunner.ensure_version_checked()
 	print("ensure_version_checked result: ", has_checked)
 
-	var full_args = FxvRunner.build_integration_register_args("/tmp/ws", "0.6.0", "0.11.0", "0.12.0")
-	assert(full_args == ["integration", "register", "--name", "godot", "--plugin-version", "0.6.0", "--min", "0.11.0", "--max-version", "0.12.0", "--workspace", "/tmp/ws"], "Full integration register args mismatch: " + str(full_args))
+	var full_args = FxvRunner.build_integration_register_args("/tmp/ws", "0.6.0", "0.11.0", "0.13.0")
+	assert(full_args == ["integration", "register", "--name", "godot", "--plugin-version", "0.6.0", "--min", "0.11.0", "--max-version", "0.13.0", "--workspace", "/tmp/ws"], "Full integration register args mismatch: " + str(full_args))
 
-	var unknown_plugin_args = FxvRunner.build_integration_register_args("/tmp/ws", "Unknown", "0.11.0", "0.12.0")
+	var unknown_plugin_args = FxvRunner.build_integration_register_args("/tmp/ws", "Unknown", "0.11.0", "0.13.0")
 	assert(not unknown_plugin_args.has("--plugin-version"), "Unknown plugin version should be omitted: " + str(unknown_plugin_args))
 
-	var empty_plugin_args = FxvRunner.build_integration_register_args("/tmp/ws", "", "0.11.0", "0.12.0")
+	var empty_plugin_args = FxvRunner.build_integration_register_args("/tmp/ws", "", "0.11.0", "0.13.0")
 	assert(not empty_plugin_args.has("--plugin-version"), "Empty plugin version should be omitted: " + str(empty_plugin_args))
+
+	var fetch_args = FxvRunner.build_fetch_args()
+	assert(fetch_args == ["fetch"], "Fetch args mismatch: " + str(fetch_args))
+	var fetch_repair_args = FxvRunner.build_fetch_args(true)
+	assert(fetch_repair_args == ["fetch", "--repair"], "Fetch repair args mismatch: " + str(fetch_repair_args))
 	print("FxvRunner OK.")
 
 func test_ui():
 	print("Testing FxvBottomDock UI...")
 	var dock = FxvBottomDock.new()
 	assert(dock != null, "Dock instantiation failed")
+	dock._build_ui()
+	assert(dock._publish_btn != null, "Publish button should be created")
+	dock._update_publish_button()
+	assert(dock._publish_btn.text == "Publish", "Publish button text should default to 'Publish'")
+	assert(dock._publish_btn.disabled == false, "Publish button should not be disabled when not busy and not playing")
+
+	dock._busy = true
+	dock._update_publish_button()
+	assert(dock._publish_btn.disabled == true, "Publish button should be disabled when busy")
+	assert(dock._publish_btn.text == "Publish", "Publish button text should remain 'Publish' when busy and not playing")
+
+	dock._busy = false
+	dock._update_publish_button()
+	assert(dock._publish_btn.disabled == false, "Publish button should be re-enabled when busy clears")
+
 	dock.free()
 	print("FxvBottomDock OK.")
 

@@ -36,8 +36,8 @@ class TestFxvCliIntegration(unittest.TestCase):
         self.assertIn("fxv", res.stdout)
         version_part = res.stdout.strip().split()[1]
         major, minor, patch = [int(p) for p in version_part.split(".")]
-        self.assertGreaterEqual((major, minor, patch), (0, 5, 0))
-        self.assertLess((major, minor, patch), (0, 12, 0))
+        self.assertGreaterEqual((major, minor, patch), (0, 11, 0))
+        self.assertLess((major, minor, patch), (0, 13, 0))
 
 if __name__ == "__main__":
     unittest.main()
