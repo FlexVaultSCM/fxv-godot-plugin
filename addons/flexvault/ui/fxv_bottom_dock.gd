@@ -44,6 +44,7 @@ var _history_loaded_fingerprint: String = ""
 
 var _confirm_dialog: ConfirmationDialog
 var _busy: bool = false
+var _was_playing: bool = false
 
 func _init() -> void:
 	name = "FlexVault"
@@ -52,9 +53,16 @@ func _init() -> void:
 func _ready() -> void:
 	_build_ui()
 	_connect_signals()
+	_update_publish_button()
 	_on_state_changed()
 	if FxvSettings.is_in_flexvault_repository():
 		_load_history()
+
+func _process(_delta: float) -> void:
+	var is_playing := FxvSafetyGuards.is_playing_scene()
+	if is_playing != _was_playing:
+		_was_playing = is_playing
+		_update_publish_button()
 
 func _build_ui() -> void:
 	_confirm_dialog = ConfirmationDialog.new()
@@ -421,9 +429,22 @@ func _get_previous_history_revision() -> String:
 		return meta.revision_display
 	return ""
 
+func _update_publish_button() -> void:
+	if _publish_btn == null:
+		return
+	var is_playing := FxvSafetyGuards.is_playing_scene()
+	if is_playing:
+		_publish_btn.disabled = true
+		_publish_btn.text = "Publish (Disabled While Running)"
+		_publish_btn.tooltip_text = "Publishing is disabled while a scene is playing in the editor."
+	else:
+		_publish_btn.disabled = _busy
+		_publish_btn.text = "Publish"
+		_publish_btn.tooltip_text = ""
+
 func _set_busy(busy: bool) -> void:
 	_busy = busy
-	_publish_btn.disabled = busy
+	_update_publish_button()
 	_sync_btn.disabled = busy
 	_branch_btn.disabled = busy
 	_resolve_mine_btn.disabled = busy

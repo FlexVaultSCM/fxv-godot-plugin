@@ -161,6 +161,21 @@ func test_ui():
 	print("Testing FxvBottomDock UI...")
 	var dock = FxvBottomDock.new()
 	assert(dock != null, "Dock instantiation failed")
+	dock._build_ui()
+	assert(dock._publish_btn != null, "Publish button should be created")
+	dock._update_publish_button()
+	assert(dock._publish_btn.text == "Publish", "Publish button text should default to 'Publish'")
+	assert(dock._publish_btn.disabled == false, "Publish button should not be disabled when not busy and not playing")
+
+	dock._busy = true
+	dock._update_publish_button()
+	assert(dock._publish_btn.disabled == true, "Publish button should be disabled when busy")
+	assert(dock._publish_btn.text == "Publish", "Publish button text should remain 'Publish' when busy and not playing")
+
+	dock._busy = false
+	dock._update_publish_button()
+	assert(dock._publish_btn.disabled == false, "Publish button should be re-enabled when busy clears")
+
 	dock.free()
 	print("FxvBottomDock OK.")
 
