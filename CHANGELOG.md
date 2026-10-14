@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## [0.8.0](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.7.2...v0.8.0) (2026-10-14)
+
+
+### Features
+
+* upgrade fxv-core compatibility to 0.12.0 ([#26](https://github.com/FlexVaultSCM/fxv-godot-plugin/issues/26)) ([c8dd801](https://github.com/FlexVaultSCM/fxv-godot-plugin/commit/c8dd801ee3801d3175bb3262c8f56172f75303d2))
+
 ## [0.7.2](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.7.1...v0.7.2) (2026-09-25)
 
 
