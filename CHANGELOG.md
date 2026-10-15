@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## [0.8.1](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.8.0...v0.8.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* canonical discord link, remove auto-refresh toggle, and enable periodic auto-fetch ([#28](https://github.com/FlexVaultSCM/fxv-godot-plugin/issues/28)) ([b7fb4ef](https://github.com/FlexVaultSCM/fxv-godot-plugin/commit/b7fb4ef6cd5f4c088fd8b01aaf85387007b2a4bf))
+
 ## [0.8.0](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.7.2...v0.8.0) (2026-10-14)
 
 
