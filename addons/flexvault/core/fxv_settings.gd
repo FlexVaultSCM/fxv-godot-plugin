@@ -6,7 +6,6 @@ extends RefCounted
 
 const SETTING_BINARY_PATH: String = "version_control/flexvault/binary_path"
 const SETTING_DIFF_TOOL: String = "version_control/flexvault/diff_tool"
-const SETTING_AUTO_REFRESH: String = "version_control/flexvault/auto_refresh"
 const SETTING_TIMEOUT_SECONDS: String = "version_control/flexvault/timeout_seconds"
 const SETTING_DEFAULT_RESOLVE_PREFERENCE: String = "version_control/flexvault/default_resolve_preference"
 const SETTING_PERIODIC_SNAPSHOT_SECONDS: String = "version_control/flexvault/periodic_snapshot_seconds"
@@ -44,13 +43,6 @@ static func register_settings() -> void:
 		"type": TYPE_STRING,
 		"hint": PROPERTY_HINT_GLOBAL_FILE,
 		"hint_string": "*.exe" if OS.get_name() == "Windows" else ""
-	})
-
-	if not editor_settings.has_setting(SETTING_AUTO_REFRESH):
-		editor_settings.set_setting(SETTING_AUTO_REFRESH, true)
-	editor_settings.add_property_info({
-		"name": SETTING_AUTO_REFRESH,
-		"type": TYPE_BOOL
 	})
 
 	if not editor_settings.has_setting(SETTING_TIMEOUT_SECONDS):
@@ -98,14 +90,6 @@ static func get_diff_tool() -> String:
 		return str(editor_settings.get_setting(SETTING_DIFF_TOOL)).strip_edges()
 	return ""
 
-
-static func is_auto_refresh_enabled() -> bool:
-	if not Engine.is_editor_hint():
-		return false
-	var editor_settings := EditorInterface.get_editor_settings()
-	if editor_settings != null and editor_settings.has_setting(SETTING_AUTO_REFRESH):
-		return bool(editor_settings.get_setting(SETTING_AUTO_REFRESH))
-	return true
 
 
 ## Seconds to wait for an async CLI call before it is reported as timed out. 0 disables
