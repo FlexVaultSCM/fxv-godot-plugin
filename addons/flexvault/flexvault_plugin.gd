@@ -9,8 +9,12 @@ var _auto_refresh_timer: Timer
 var _import_refresh_debounce: Timer
 var _on_resources_reimported: Callable
 
-## A project-wide reimport is worth a checkpoint; reimporting a couple of files isn't.
+## Debounce / polling constants
 const BULK_REIMPORT_SNAPSHOT_THRESHOLD := 15
+const AUTO_REFRESH_INTERVAL_SECONDS := 10.0
+## Poll remote repository metadata (auto-fetch) every 6 ticks (60 seconds) during background refresh
+const REMOTE_POLL_INTERVAL_TICKS := 6
+var _timer_refresh_tick_count: int = 0
 
 ## Same idea for scene saves: only snapshot if the node count changed by a lot since the last
 ## save (bulk delete/instantiate), not on every Ctrl+S. Keyed per scene path rather than a
@@ -72,7 +76,7 @@ func _enter_tree() -> void:
 
 	# Auto-refresh timer (polls status every 10 seconds if editor is active)
 	_auto_refresh_timer = Timer.new()
-	_auto_refresh_timer.wait_time = 10.0
+	_auto_refresh_timer.wait_time = AUTO_REFRESH_INTERVAL_SECONDS
 	_auto_refresh_timer.autostart = true
 	_auto_refresh_timer.one_shot = false
 	_auto_refresh_timer.timeout.connect(_on_timer_refresh)
@@ -175,8 +179,12 @@ func _on_timer_refresh() -> void:
 	# 10s tick (or the refresh right after the snapshot's own filesystem_changed) picks it up.
 	if _snapshot_in_flight:
 		return
-	if FxvSettings.is_auto_refresh_enabled() and FxvSettings.is_in_flexvault_repository():
-		_state_cache.refresh(true, false) # skip remote metadata check on periodic poll, keep disk scan enabled
+	if FxvSettings.is_in_flexvault_repository():
+		_timer_refresh_tick_count += 1
+		# Auto-fetch: poll remote metadata every REMOTE_POLL_INTERVAL_TICKS (e.g. 60s), while
+		# scanning disk on every tick (10s).
+		var skip_remote := (_timer_refresh_tick_count % REMOTE_POLL_INTERVAL_TICKS) != 0
+		_state_cache.refresh(skip_remote, false)
 
 func _on_filesystem_changed() -> void:
 	if FxvSettings.is_in_flexvault_repository():
@@ -185,7 +193,7 @@ func _on_filesystem_changed() -> void:
 func _on_import_refresh_debounce_timeout() -> void:
 	if _snapshot_in_flight:
 		return
-	if FxvSettings.is_auto_refresh_enabled() and FxvSettings.is_in_flexvault_repository():
+	if FxvSettings.is_in_flexvault_repository():
 		_state_cache.refresh(true, false)
 
 func _on_resources_reimported_handler(paths: PackedStringArray) -> void:
