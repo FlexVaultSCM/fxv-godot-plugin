@@ -335,4 +335,4 @@ func _on_menu_docs() -> void:
 	OS.shell_open("https://docs.fxv.dev")
 
 func _on_menu_discord() -> void:
-	OS.shell_open("https://discord.gg/KCMHRQBDf")
+	OS.shell_open("https://fxv.dev/discord")

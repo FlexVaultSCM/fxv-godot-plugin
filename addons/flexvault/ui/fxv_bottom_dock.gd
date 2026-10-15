@@ -287,7 +287,7 @@ func _connect_signals() -> void:
 	_history_diff_previous_btn.pressed.connect(_on_history_diff_previous_pressed)
 	_changes_tree.multi_selected.connect(func(_item: TreeItem, _column: int, _selected: bool): _update_selection_dependent_buttons())
 	_docs_btn.pressed.connect(func(): OS.shell_open("https://docs.fxv.dev"))
-	_discord_btn.pressed.connect(func(): OS.shell_open("https://discord.gg/KCMHRQBDf"))
+	_discord_btn.pressed.connect(func(): OS.shell_open("https://fxv.dev/discord"))
 	_login_btn.pressed.connect(_on_login_pressed)
 	_login_edit.text_submitted.connect(func(_text: String): _on_login_pressed())
 

@@ -59,5 +59,5 @@ Settings can be customized in **Editor -> Editor Settings -> Version Control -> 
 
 ## Feedback & Support
 
-Bug reports and feedback are welcome on the [FlexVault Discord](https://discord.gg/KCMHRQBDf).
+Bug reports and feedback are welcome on the [FlexVault Discord](https://fxv.dev/discord).
 For documentation, see [docs.fxv.dev](https://docs.fxv.dev).
