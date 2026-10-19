@@ -51,6 +51,8 @@ static func parse_semver(version_str: String) -> SemVer:
 	if version_str.is_empty():
 		return null
 	var cleaned := version_str.strip_edges()
+	if cleaned.begins_with("v") or cleaned.begins_with("V"):
+		cleaned = cleaned.substr(1)
 	var parts := cleaned.split(".")
 	if parts.size() < 2 or parts.size() > 3:
 		return null
@@ -129,6 +131,10 @@ static func reset_cached_version() -> void:
 	_cached_is_compatible = null
 	_cached_version_string = ""
 	_cached_error_message = ""
+	_cached_plugin_version = ""
+	_available_update_version = ""
+	_available_update_cli_range = ""
+	_has_checked_update = false
 
 
 static func set_incompatible(error_msg: String) -> void:
@@ -171,6 +177,13 @@ static func get_plugin_version() -> String:
 const REMOTE_VERSION_JSON_URL := "https://github.com/FlexVaultSCM/fxv-godot-plugin/releases/latest/download/version.json"
 static var _available_update_version: String = ""
 static var _available_update_cli_range: String = ""
+static var _has_checked_update: bool = false
+
+static func has_checked_update() -> bool:
+	return _has_checked_update
+
+static func reset_update_check_flag() -> void:
+	_has_checked_update = false
 
 static func get_available_update_version() -> String:
 	return _available_update_version
@@ -181,8 +194,12 @@ static func get_available_update_cli_range() -> String:
 static func set_plugin_version_override(ver: String) -> void:
 	_cached_plugin_version = ver
 
-static func process_remote_manifest(json_text: String) -> Dictionary:
-	var res := { "update_available": false, "version": "", "cli_range": "" }
+## Evaluates a remote version.json manifest.
+## If local_cli_version is omitted, falls back to the cached CLI version from get_last_version_string().
+## Only marks update_available = true if the remote version is strictly newer than the current plugin
+## version AND is compatible with the installed fxv CLI version.
+static func process_remote_manifest(json_text: String, local_cli_version: String = "") -> Dictionary:
+	var res := { "update_available": false, "version": "", "cli_range": "", "cli_compatible": true }
 	if json_text.is_empty():
 		return res
 
@@ -197,15 +214,46 @@ static func process_remote_manifest(json_text: String) -> Dictionary:
 
 	var current_ver_str := get_plugin_version()
 	var current_semver := parse_semver(current_ver_str)
-	if current_semver != null and current_semver.is_less_than(remote_semver):
-		_available_update_version = remote_ver_str
-		res["update_available"] = true
-		res["version"] = remote_ver_str
+	if current_semver == null or not current_semver.is_less_than(remote_semver):
+		_available_update_version = ""
+		_available_update_cli_range = ""
+		return res
 
-		var compat = parsed.get("cli_compatibility", {})
-		if compat is Dictionary and compat.has("min") and compat.has("max"):
-			_available_update_cli_range = ">= %s, < %s" % [compat["min"], compat["max"]]
-			res["cli_range"] = _available_update_cli_range
+	var cli_range_str := ""
+	var compat = parsed.get("cli_compatibility", {})
+	var cli_is_compatible := true
+
+	if compat is Dictionary and compat.has("min") and compat.has("max"):
+		var min_str := str(compat["min"])
+		var max_str := str(compat["max"])
+		cli_range_str = ">= %s, < %s" % [min_str, max_str]
+
+		var effective_cli := local_cli_version if not local_cli_version.is_empty() else get_last_version_string()
+		if not effective_cli.is_empty():
+			var local_cli_semver := parse_semver(effective_cli)
+			var min_semver := parse_semver(min_str)
+			var max_semver := parse_semver(max_str)
+
+			if local_cli_semver != null:
+				if min_semver != null and local_cli_semver.is_less_than(min_semver):
+					cli_is_compatible = false
+				if max_semver != null and local_cli_semver.is_greater_than_or_equal(max_semver):
+					cli_is_compatible = false
+
+	res["cli_range"] = cli_range_str
+	res["cli_compatible"] = cli_is_compatible
+
+	# If the remote release requires a CLI version outside our local CLI range,
+	# do not suggest updating to it.
+	if not cli_is_compatible:
+		_available_update_version = ""
+		_available_update_cli_range = ""
+		return res
+
+	_available_update_version = remote_ver_str
+	_available_update_cli_range = cli_range_str
+	res["update_available"] = true
+	res["version"] = remote_ver_str
 
 	return res
 

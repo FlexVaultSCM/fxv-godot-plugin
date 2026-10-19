@@ -25,13 +25,13 @@ if (!fs.existsSync(guardPath)) {
 }
 const guardContent = fs.readFileSync(guardPath, 'utf8');
 
-const minMajorMatch = guardContent.match(/const\s+MIN_MAJOR:\s*int\s*=\s*(\d+)/);
-const minMinorMatch = guardContent.match(/const\s+MIN_MINOR:\s*int\s*=\s*(\d+)/);
-const minPatchMatch = guardContent.match(/const\s+MIN_PATCH:\s*int\s*=\s*(\d+)/);
+const minMajorMatch = guardContent.match(/const\s+MIN_MAJOR(?::\s*int)?\s*=\s*(\d+)/);
+const minMinorMatch = guardContent.match(/const\s+MIN_MINOR(?::\s*int)?\s*=\s*(\d+)/);
+const minPatchMatch = guardContent.match(/const\s+MIN_PATCH(?::\s*int)?\s*=\s*(\d+)/);
 
-const maxMajorMatch = guardContent.match(/const\s+MAX_MAJOR:\s*int\s*=\s*(\d+)/);
-const maxMinorMatch = guardContent.match(/const\s+MAX_MINOR:\s*int\s*=\s*(\d+)/);
-const maxPatchMatch = guardContent.match(/const\s+MAX_PATCH:\s*int\s*=\s*(\d+)/);
+const maxMajorMatch = guardContent.match(/const\s+MAX_MAJOR(?::\s*int)?\s*=\s*(\d+)/);
+const maxMinorMatch = guardContent.match(/const\s+MAX_MINOR(?::\s*int)?\s*=\s*(\d+)/);
+const maxPatchMatch = guardContent.match(/const\s+MAX_PATCH(?::\s*int)?\s*=\s*(\d+)/);
 
 if (!minMajorMatch || !minMinorMatch || !minPatchMatch || !maxMajorMatch || !maxMinorMatch || !maxPatchMatch) {
   console.error('Error: Could not parse FxvVersionGuard MIN/MAX constants from ' + guardPath);

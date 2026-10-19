@@ -47,13 +47,56 @@ func test_version_guard():
 	assert(res_low["error"].find("RefCounted") == -1, "check_version() error leaked default Object repr: " + res_low["error"])
 	assert(res_low["error"].find("0.11.0") != -1 and res_low["error"].find("0.13.0") != -1, "check_version() error missing version bounds: " + res_low["error"])
 
-	# Test process_remote_manifest
+	# Test 'v' prefix parsing
+	var sem_v = FxvVersionGuard.parse_semver("v0.8.0")
+	assert(sem_v != null and sem_v.major == 0 and sem_v.minor == 8 and sem_v.patch == 0, "SemVer 'v' prefix parse failed")
+	var sem_upper_v = FxvVersionGuard.parse_semver("V1.2.3")
+	assert(sem_upper_v != null and sem_upper_v.major == 1 and sem_upper_v.minor == 2 and sem_upper_v.patch == 3, "SemVer 'V' prefix parse failed")
+
+	# Test process_remote_manifest with compatible local CLI
 	FxvVersionGuard.set_plugin_version_override("0.8.0")
 	var manifest_json = '{"name":"godot","plugin_version":"0.9.0","tag":"v0.9.0","cli_compatibility":{"min":"0.11.0","max":"0.13.0"}}'
-	var manifest_res = FxvVersionGuard.process_remote_manifest(manifest_json)
+	var manifest_res = FxvVersionGuard.process_remote_manifest(manifest_json, "0.12.0")
 	assert(manifest_res["update_available"] == true, "Expected update to be available")
+	assert(manifest_res["cli_compatible"] == true, "Expected CLI to be compatible")
 	assert(FxvVersionGuard.get_available_update_version() == "0.9.0", "Available update version mismatch")
 	assert(FxvVersionGuard.get_available_update_cli_range() == ">= 0.11.0, < 0.13.0", "CLI range mismatch")
+
+	# Test process_remote_manifest filtering when local CLI is too old
+	var manifest_res_old_cli = FxvVersionGuard.process_remote_manifest(manifest_json, "0.10.5")
+	assert(manifest_res_old_cli["update_available"] == false, "Update should NOT be suggested when local CLI is too old")
+	assert(manifest_res_old_cli["cli_compatible"] == false, "CLI should be marked incompatible")
+	assert(FxvVersionGuard.get_available_update_version() == "", "Available update version should be empty when CLI incompatible")
+
+	# Test process_remote_manifest filtering when local CLI is too new (>= max bound)
+	var manifest_res_new_cli = FxvVersionGuard.process_remote_manifest(manifest_json, "0.13.0")
+	assert(manifest_res_new_cli["update_available"] == false, "Update should NOT be suggested when local CLI is >= max bound")
+	assert(manifest_res_new_cli["cli_compatible"] == false, "CLI should be marked incompatible")
+
+	# Test process_remote_manifest when already on same version
+	FxvVersionGuard.set_plugin_version_override("0.9.0")
+	var manifest_res_same = FxvVersionGuard.process_remote_manifest(manifest_json, "0.12.0")
+	assert(manifest_res_same["update_available"] == false, "Update should NOT be available when version is identical")
+	assert(FxvVersionGuard.get_available_update_version() == "", "Update version should be empty when up to date")
+
+	# Test process_remote_manifest when installed version is newer than remote
+	FxvVersionGuard.set_plugin_version_override("1.0.0")
+	var manifest_res_older = FxvVersionGuard.process_remote_manifest(manifest_json, "0.12.0")
+	assert(manifest_res_older["update_available"] == false, "Update should NOT be available when installed is newer")
+
+	# Test process_remote_manifest with 'v' prefix in remote manifest
+	FxvVersionGuard.set_plugin_version_override("0.8.0")
+	var manifest_v_json = '{"name":"godot","plugin_version":"v0.9.0","tag":"v0.9.0","cli_compatibility":{"min":"0.11.0","max":"0.13.0"}}'
+	var manifest_res_v = FxvVersionGuard.process_remote_manifest(manifest_v_json, "0.12.0")
+	assert(manifest_res_v["update_available"] == true, "Expected update to handle 'v' prefix in plugin_version")
+
+	# Test malformed / empty manifest
+	var manifest_res_bad = FxvVersionGuard.process_remote_manifest("{bad json")
+	assert(manifest_res_bad["update_available"] == false, "Malformed manifest should not trigger update")
+
+	# Reset override and caches so subsequent tests are not contaminated
+	FxvVersionGuard.set_plugin_version_override("")
+	FxvVersionGuard.reset_cached_version()
 
 	print("FxvVersionGuard OK.")
 
@@ -154,6 +197,8 @@ func test_settings():
 	assert(not bin_path.is_empty(), "Effective binary path should not be empty")
 	var fetch_period = FxvSettings.get_fetch_period_seconds()
 	assert(fetch_period == 120.0, "Default fetch period should be 120.0: " + str(fetch_period))
+	var check_updates = FxvSettings.get_check_for_updates()
+	assert(check_updates == true, "Default check for updates should be true: " + str(check_updates))
 
 	var empty_cands = FxvSettings.build_terminal_launch_candidates("", "Windows")
 	assert(empty_cands.is_empty(), "Empty working dir should return no terminal candidates")

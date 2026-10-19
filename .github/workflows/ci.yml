@@ -83,3 +83,13 @@ jobs:
           test -s "$archive_name"
           sha256sum "$archive_name"
           echo "Packaging dry-run successful: $archive_name"
+
+      - name: Validate version manifest generation (dry-run)
+        run: |
+          node .github/scripts/generate-version-json.js
+          test -s version.json
+          rm version.json
+          echo "Manifest generation dry-run successful."
+
+      - name: Run unit tests
+        run: python3 -m unittest discover tests

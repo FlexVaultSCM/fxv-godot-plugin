@@ -10,6 +10,7 @@ const SETTING_TIMEOUT_SECONDS: String = "version_control/flexvault/timeout_secon
 const SETTING_DEFAULT_RESOLVE_PREFERENCE: String = "version_control/flexvault/default_resolve_preference"
 const SETTING_PERIODIC_SNAPSHOT_SECONDS: String = "version_control/flexvault/periodic_snapshot_seconds"
 const SETTING_FETCH_PERIOD_SECONDS: String = "version_control/flexvault/fetch_period_seconds"
+const SETTING_CHECK_FOR_UPDATES: String = "version_control/flexvault/check_for_updates"
 
 const RESOLVE_PREFERENCE_ASK: int = 0
 const RESOLVE_PREFERENCE_MINE: int = 1
@@ -81,6 +82,13 @@ static func register_settings() -> void:
 		"hint_string": "0,3600,1,suffix:s"
 	})
 
+	if not editor_settings.has_setting(SETTING_CHECK_FOR_UPDATES):
+		editor_settings.set_setting(SETTING_CHECK_FOR_UPDATES, true)
+	editor_settings.add_property_info({
+		"name": SETTING_CHECK_FOR_UPDATES,
+		"type": TYPE_BOOL,
+	})
+
 
 static func get_diff_tool() -> String:
 	if not Engine.is_editor_hint():
@@ -135,6 +143,16 @@ static func get_fetch_period_seconds() -> float:
 	if editor_settings != null and editor_settings.has_setting(SETTING_FETCH_PERIOD_SECONDS):
 		return float(editor_settings.get_setting(SETTING_FETCH_PERIOD_SECONDS))
 	return 120.0
+
+
+## Whether to check GitHub release manifests for newer compatible plugin versions on startup.
+static func get_check_for_updates() -> bool:
+	if not Engine.is_editor_hint():
+		return true
+	var editor_settings := EditorInterface.get_editor_settings()
+	if editor_settings != null and editor_settings.has_setting(SETTING_CHECK_FOR_UPDATES):
+		return bool(editor_settings.get_setting(SETTING_CHECK_FOR_UPDATES))
+	return true
 
 
 static func get_custom_binary_path() -> String:

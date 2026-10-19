@@ -323,6 +323,9 @@ func _version_suffix() -> String:
 		parts.append("fxv %s" % cli_version)
 	if not plugin_version.is_empty():
 		parts.append("plugin %s (beta)" % plugin_version)
+	var update_version := FxvVersionGuard.get_available_update_version()
+	if not update_version.is_empty():
+		parts.append("v%s update available" % update_version)
 	return " | %s" % " / ".join(parts)
 
 func _on_tab_changed(tab_idx: int) -> void:

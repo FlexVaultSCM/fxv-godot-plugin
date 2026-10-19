@@ -1,3 +1,4 @@
+import json
 import re
 import unittest
 
@@ -29,6 +30,8 @@ def parse_semver(version_str):
     if not version_str or not version_str.strip():
         return None
     cleaned = version_str.strip()
+    if cleaned.startswith("v") or cleaned.startswith("V"):
+        cleaned = cleaned[1:]
     parts = cleaned.split(".")
     if len(parts) < 2 or len(parts) > 3:
         return None
@@ -57,6 +60,55 @@ def check_version(version_str, min_ver, max_ver):
     if parsed.is_greater_than_or_equal(max_ver):
         return False, "Version too high"
     return True, ""
+
+def process_remote_manifest(json_text, current_plugin_version, local_cli_version=""):
+    res = {"update_available": False, "version": "", "cli_range": "", "cli_compatible": True}
+    if not json_text or not json_text.strip():
+        return res
+    try:
+        parsed = json.loads(json_text)
+    except Exception:
+        return res
+    if not isinstance(parsed, dict):
+        return res
+
+    remote_ver_str = str(parsed.get("plugin_version", ""))
+    remote_semver = parse_semver(remote_ver_str)
+    if remote_semver is None:
+        return res
+
+    current_semver = parse_semver(current_plugin_version)
+    if current_semver is None or not current_semver.is_less_than(remote_semver):
+        return res
+
+    cli_range_str = ""
+    compat = parsed.get("cli_compatibility", {})
+    cli_is_compatible = True
+
+    if isinstance(compat, dict) and "min" in compat and "max" in compat:
+        min_str = str(compat["min"])
+        max_str = str(compat["max"])
+        cli_range_str = f">= {min_str}, < {max_str}"
+
+        if local_cli_version:
+            local_cli_semver = parse_semver(local_cli_version)
+            min_semver = parse_semver(min_str)
+            max_semver = parse_semver(max_str)
+            if local_cli_semver is not None:
+                if min_semver is not None and local_cli_semver.is_less_than(min_semver):
+                    cli_is_compatible = False
+                if max_semver is not None and local_cli_semver.is_greater_than_or_equal(max_semver):
+                    cli_is_compatible = False
+
+    res["cli_range"] = cli_range_str
+    res["cli_compatible"] = cli_is_compatible
+
+    if not cli_is_compatible:
+        return res
+
+    res["update_available"] = True
+    res["version"] = remote_ver_str
+    return res
 
 class TestVersionGuard(unittest.TestCase):
     def setUp(self):
@@ -104,10 +156,65 @@ class TestVersionGuard(unittest.TestCase):
         ok, _ = check_version("0.13.0-rc1", self.min_ver, self.max_ver)
         self.assertFalse(ok)
 
+    def test_parse_prefix(self):
+        v = parse_semver("v0.9.0")
+        self.assertIsNotNone(v)
+        self.assertEqual((v.major, v.minor, v.patch), (0, 9, 0))
+
+        v2 = parse_semver("V1.2.3")
+        self.assertIsNotNone(v2)
+        self.assertEqual((v2.major, v2.minor, v2.patch), (1, 2, 3))
+
     def test_process_remote_manifest(self):
-        remote_semver = parse_semver("0.9.0")
-        current_semver = parse_semver("0.8.0")
-        self.assertTrue(current_semver.is_less_than(remote_semver))
+        manifest_json = json.dumps({
+            "name": "godot",
+            "plugin_version": "0.9.0",
+            "tag": "v0.9.0",
+            "cli_compatibility": {
+                "min": "0.11.0",
+                "max": "0.13.0"
+            }
+        })
+
+        # Update available with compatible CLI
+        res = process_remote_manifest(manifest_json, "0.8.0", "0.12.0")
+        self.assertTrue(res["update_available"])
+        self.assertTrue(res["cli_compatible"])
+        self.assertEqual(res["version"], "0.9.0")
+        self.assertEqual(res["cli_range"], ">= 0.11.0, < 0.13.0")
+
+        # CLI incompatible (too low) -> update not suggested
+        res_old_cli = process_remote_manifest(manifest_json, "0.8.0", "0.10.5")
+        self.assertFalse(res_old_cli["update_available"])
+        self.assertFalse(res_old_cli["cli_compatible"])
+
+        # CLI incompatible (too high) -> update not suggested
+        res_new_cli = process_remote_manifest(manifest_json, "0.8.0", "0.13.0")
+        self.assertFalse(res_new_cli["update_available"])
+        self.assertFalse(res_new_cli["cli_compatible"])
+
+        # Already up to date -> no update
+        res_same = process_remote_manifest(manifest_json, "0.9.0", "0.12.0")
+        self.assertFalse(res_same["update_available"])
+
+        # Current is newer -> no update
+        res_newer = process_remote_manifest(manifest_json, "1.0.0", "0.12.0")
+        self.assertFalse(res_newer["update_available"])
+
+        # Manifest with 'v' prefix
+        manifest_v = json.dumps({
+            "name": "godot",
+            "plugin_version": "v0.9.0",
+            "tag": "v0.9.0",
+            "cli_compatibility": {"min": "0.11.0", "max": "0.13.0"}
+        })
+        res_v = process_remote_manifest(manifest_v, "0.8.0", "0.12.0")
+        self.assertTrue(res_v["update_available"])
+
+        # Malformed manifest
+        self.assertFalse(process_remote_manifest("", "0.8.0")["update_available"])
+        self.assertFalse(process_remote_manifest("not-json", "0.8.0")["update_available"])
+        self.assertFalse(process_remote_manifest("[]", "0.8.0")["update_available"])
 
 if __name__ == "__main__":
     unittest.main()
