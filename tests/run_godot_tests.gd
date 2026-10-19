@@ -199,6 +199,7 @@ func test_settings():
 	assert(fetch_period == 120.0, "Default fetch period should be 120.0: " + str(fetch_period))
 	var check_updates = FxvSettings.get_check_for_updates()
 	assert(check_updates == true, "Default check for updates should be true: " + str(check_updates))
+	assert(FxvSettings.DOCS_URL == "https://docs.fxv.dev/how-to/godot-plugin/", "Docs URL mismatch: " + FxvSettings.DOCS_URL)
 
 	var empty_cands = FxvSettings.build_terminal_launch_candidates("", "Windows")
 	assert(empty_cands.is_empty(), "Empty working dir should return no terminal candidates")

@@ -167,7 +167,7 @@ func _check_remote_plugin_update() -> void:
 			if update_info.get("update_available", false):
 				var range_str: String = update_info.get("cli_range", "")
 				var range_notice := " (supports fxv CLI %s)" % range_str if not range_str.is_empty() else ""
-				print("[FlexVault] A newer plugin version (v%s) is available%s: https://github.com/FlexVaultSCM/fxv-godot-plugin/releases/latest" % [update_info.get("version", ""), range_notice])
+				push_warning("[FlexVault] A newer plugin version (v%s) is available%s: %s" % [update_info.get("version", ""), range_notice, FxvSettings.DOCS_URL])
 				if _bottom_dock != null and is_instance_valid(_bottom_dock):
 					_bottom_dock._on_state_changed()
 		http.queue_free()
@@ -430,7 +430,7 @@ func _on_menu_terminal() -> void:
 	FxvSettings.open_workspace_in_terminal()
 
 func _on_menu_docs() -> void:
-	OS.shell_open("https://docs.fxv.dev")
+	OS.shell_open(FxvSettings.DOCS_URL)
 
 func _on_menu_discord() -> void:
 	OS.shell_open("https://fxv.dev/discord")

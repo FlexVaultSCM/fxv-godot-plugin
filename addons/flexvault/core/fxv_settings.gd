@@ -12,6 +12,9 @@ const SETTING_PERIODIC_SNAPSHOT_SECONDS: String = "version_control/flexvault/per
 const SETTING_FETCH_PERIOD_SECONDS: String = "version_control/flexvault/fetch_period_seconds"
 const SETTING_CHECK_FOR_UPDATES: String = "version_control/flexvault/check_for_updates"
 
+const DOCS_URL: String = "https://docs.fxv.dev/how-to/godot-plugin/"
+const DISCORD_URL: String = "https://fxv.dev/discord"
+
 const RESOLVE_PREFERENCE_ASK: int = 0
 const RESOLVE_PREFERENCE_MINE: int = 1
 const RESOLVE_PREFERENCE_THEIRS: int = 2
