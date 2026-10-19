@@ -245,3 +245,94 @@ static func is_in_flexvault_repository() -> bool:
 static func invalidate_repo_root() -> void:
 	_cached_repo_root = ""
 	_searched_repo_root = false
+
+
+## Builds an ordered list of terminal launch candidate dictionaries for the given working
+## directory and OS name. Each entry has keys: "command" (String), "args" (Array[String]),
+## and "open_console" (bool).
+static func build_terminal_launch_candidates(working_dir: String, os_name: String = "") -> Array:
+	var target_os := os_name if not os_name.is_empty() else OS.get_name()
+	var candidates: Array = []
+
+	if target_os == "Windows":
+		var win_dir := working_dir.replace("/", "\\")
+		var escaped_ps_dir := win_dir.replace("'", "''")
+		candidates.append({
+			"command": "wt.exe",
+			"args": ["-d", win_dir],
+			"open_console": false
+		})
+		candidates.append({
+			"command": "powershell.exe",
+			"args": ["-NoExit", "-Command", "Set-Location -LiteralPath '%s'" % escaped_ps_dir],
+			"open_console": true
+		})
+		candidates.append({
+			"command": "cmd.exe",
+			"args": ["/K", "cd /d \"%s\"" % win_dir],
+			"open_console": true
+		})
+	elif target_os == "macOS":
+		candidates.append({
+			"command": "open",
+			"args": ["-a", "Terminal", working_dir],
+			"open_console": false
+		})
+	else:
+		candidates.append({
+			"command": "x-terminal-emulator",
+			"args": ["--working-directory=" + working_dir],
+			"open_console": false
+		})
+		candidates.append({
+			"command": "gnome-terminal",
+			"args": ["--working-directory=" + working_dir],
+			"open_console": false
+		})
+		candidates.append({
+			"command": "konsole",
+			"args": ["--workdir", working_dir],
+			"open_console": false
+		})
+		candidates.append({
+			"command": "xfce4-terminal",
+			"args": ["--working-directory=" + working_dir],
+			"open_console": false
+		})
+		candidates.append({
+			"command": "kitty",
+			"args": ["--directory", working_dir],
+			"open_console": false
+		})
+		candidates.append({
+			"command": "alacritty",
+			"args": ["--working-directory", working_dir],
+			"open_console": false
+		})
+		candidates.append({
+			"command": "wezterm",
+			"args": ["start", "--cwd", working_dir],
+			"open_console": false
+		})
+
+	return candidates
+
+
+static func open_workspace_in_terminal() -> bool:
+	var working_dir := get_repository_root()
+	if working_dir.is_empty() or not DirAccess.dir_exists_absolute(working_dir):
+		push_error("[FlexVault] Cannot open terminal: workspace directory not found.")
+		return false
+
+	var candidates := build_terminal_launch_candidates(working_dir, OS.get_name())
+	for cand in candidates:
+		var cmd: String = cand["command"]
+		var args: Array = cand["args"]
+		var open_console: bool = cand.get("open_console", false)
+		var pid := OS.create_process(cmd, args, open_console)
+		if pid > 0:
+			return true
+
+	push_error("[FlexVault] Failed to launch a terminal in '%s'." % working_dir)
+	return false
+

@@ -69,6 +69,12 @@ func test_meta_helper():
 	assert(with_comp.has("scenes/player.tscn"), "Original file missing")
 	assert(with_comp.has("scenes/player.tscn.import"), "Known companion missing")
 	assert(not with_comp.has("scenes/player.tscn.uid"), "Non-existent uid should not be included")
+
+	# resolve_openable_repo_path resolves existing base asset for .uid/.import companions
+	var resolved_base = FxvMetaHelper.resolve_openable_repo_path("addons/flexvault/flexvault_plugin.gd.uid", repo_root)
+	assert(resolved_base == "addons/flexvault/flexvault_plugin.gd", "Should resolve .uid companion to existing script: " + resolved_base)
+	var resolved_missing = FxvMetaHelper.resolve_openable_repo_path("missing/file.gd.uid", repo_root)
+	assert(resolved_missing == "missing/file.gd.uid", "Should keep companion path when base asset does not exist: " + resolved_missing)
 	print("FxvMetaHelper OK.")
 
 
@@ -135,6 +141,20 @@ func test_settings():
 	assert(not bin_path.is_empty(), "Effective binary path should not be empty")
 	var fetch_period = FxvSettings.get_fetch_period_seconds()
 	assert(fetch_period == 120.0, "Default fetch period should be 120.0: " + str(fetch_period))
+
+	var win_cands = FxvSettings.build_terminal_launch_candidates("C:/Projects/MyGame", "Windows")
+	assert(win_cands.size() >= 3, "Windows should have at least 3 terminal candidates")
+	assert(win_cands[0]["command"] == "wt.exe", "First Windows candidate should be wt.exe")
+	assert(win_cands[0]["args"] == ["-d", "C:\\Projects\\MyGame"], "wt.exe args mismatch: " + str(win_cands[0]["args"]))
+	assert(win_cands[1]["command"] == "powershell.exe", "Second Windows candidate should be powershell.exe")
+
+	var mac_cands = FxvSettings.build_terminal_launch_candidates("/Users/dev/MyGame", "macOS")
+	assert(mac_cands.size() == 1 and mac_cands[0]["command"] == "open", "macOS candidate should use open -a Terminal")
+	assert(mac_cands[0]["args"] == ["-a", "Terminal", "/Users/dev/MyGame"], "macOS args mismatch")
+
+	var linux_cands = FxvSettings.build_terminal_launch_candidates("/home/dev/MyGame", "Linux")
+	assert(linux_cands.size() >= 3, "Linux should have multiple terminal candidates")
+	assert(linux_cands[0]["command"] == "x-terminal-emulator", "First Linux candidate should be x-terminal-emulator")
 	print("FxvSettings OK.")
 
 func test_runner():
@@ -163,6 +183,8 @@ func test_ui():
 	assert(dock != null, "Dock instantiation failed")
 	dock._build_ui()
 	assert(dock._publish_btn != null, "Publish button should be created")
+	assert(dock._terminal_btn != null, "Terminal button should be created")
+	assert(dock._terminal_btn.text == "Terminal", "Terminal button text should be 'Terminal'")
 	dock._update_publish_button()
 	assert(dock._publish_btn.text == "Publish", "Publish button text should default to 'Publish'")
 	assert(dock._publish_btn.disabled == false, "Publish button should not be disabled when not busy and not playing")
@@ -178,5 +200,6 @@ func test_ui():
 
 	dock.free()
 	print("FxvBottomDock OK.")
+
 
 

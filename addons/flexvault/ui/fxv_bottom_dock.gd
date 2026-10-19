@@ -28,6 +28,7 @@ var _branch_menu: PopupMenu
 var _user_branch_label: Label
 var _login_edit: LineEdit
 var _login_btn: Button
+var _terminal_btn: Button
 var _docs_btn: Button
 var _discord_btn: Button
 
@@ -117,6 +118,11 @@ func _build_ui() -> void:
 	toolbar.add_child(_status_label)
 
 	toolbar.add_spacer(false)
+
+	_terminal_btn = Button.new()
+	_terminal_btn.text = "Terminal"
+	_terminal_btn.tooltip_text = "Open the FlexVault workspace in a terminal"
+	toolbar.add_child(_terminal_btn)
 
 	_docs_btn = Button.new()
 	_docs_btn.text = "Docs"
@@ -294,6 +300,9 @@ func _connect_signals() -> void:
 	_history_diff_current_btn.pressed.connect(_on_history_diff_current_pressed)
 	_history_diff_previous_btn.pressed.connect(_on_history_diff_previous_pressed)
 	_changes_tree.multi_selected.connect(func(_item: TreeItem, _column: int, _selected: bool): _update_selection_dependent_buttons())
+	_changes_tree.item_activated.connect(_on_changes_item_activated)
+	_history_details_tree.item_activated.connect(_on_history_details_item_activated)
+	_terminal_btn.pressed.connect(func(): FxvSettings.open_workspace_in_terminal())
 	_docs_btn.pressed.connect(func(): OS.shell_open("https://docs.fxv.dev"))
 	_discord_btn.pressed.connect(func(): OS.shell_open("https://fxv.dev/discord"))
 	_login_btn.pressed.connect(_on_login_pressed)
@@ -475,6 +484,54 @@ func _get_selected_paths() -> Array:
 		paths.append(item.get_text(0))
 		item = _changes_tree.get_next_selected(item)
 	return paths
+
+func _on_changes_item_activated() -> void:
+	var item := _changes_tree.get_selected()
+	if item == null:
+		item = _changes_tree.get_next_selected(null)
+	if item != null:
+		_open_file_in_editor(item.get_text(0))
+
+func _on_history_details_item_activated() -> void:
+	var item := _history_details_tree.get_selected()
+	if item != null:
+		_open_file_in_editor(item.get_text(0))
+
+func _open_file_in_editor(repo_rel_path: String) -> void:
+	if repo_rel_path.is_empty():
+		return
+
+	var repo_root := FxvSettings.get_repository_root()
+	var project_root := FxvSettings.get_project_root()
+	var target_rel := FxvMetaHelper.resolve_openable_repo_path(repo_rel_path, repo_root)
+	var abs_path := FxvMetaHelper.to_absolute_path(target_rel, repo_root)
+
+	if not FileAccess.file_exists(abs_path):
+		_status_label.text = "Cannot open '%s': file does not exist in workspace." % repo_rel_path
+		return
+
+	var res_path := FxvMetaHelper.to_project_res_path(target_rel, repo_root, project_root)
+	if Engine.is_editor_hint() and res_path.begins_with("res://"):
+		EditorInterface.select_file(res_path)
+		var ext := res_path.get_extension().to_lower()
+		if ext == "tscn" or ext == "scn":
+			EditorInterface.open_scene_from_path(res_path)
+			_status_label.text = "Opened %s" % target_rel
+			return
+
+		if ResourceLoader.exists(res_path):
+			var resource := ResourceLoader.load(res_path)
+			if resource != null:
+				if resource is Script:
+					EditorInterface.set_main_screen_editor("Script")
+					EditorInterface.edit_script(resource)
+				else:
+					EditorInterface.edit_resource(resource)
+				_status_label.text = "Opened %s" % target_rel
+				return
+
+	OS.shell_open(abs_path)
+	_status_label.text = "Opened %s" % target_rel
 
 ## Publish snapshots the workspace first, then publishes the resulting draft. Manual snapshotting
 ## is intentionally not exposed in the UI - the plugin takes snapshots automatically on
