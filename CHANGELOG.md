@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## [0.10.0](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.9.0...v0.10.0) (2026-10-19)
+
+
+### Features
+
+* publish version.json manifest with release ([#32](https://github.com/FlexVaultSCM/fxv-godot-plugin/issues/32)) ([4235af6](https://github.com/FlexVaultSCM/fxv-godot-plugin/commit/4235af6860a256ff313187aa8cec910dbdcb1fd9))
+
 ## [0.9.0](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.8.1...v0.9.0) (2026-10-19)
 
 
