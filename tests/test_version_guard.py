@@ -104,5 +104,10 @@ class TestVersionGuard(unittest.TestCase):
         ok, _ = check_version("0.13.0-rc1", self.min_ver, self.max_ver)
         self.assertFalse(ok)
 
+    def test_process_remote_manifest(self):
+        remote_semver = parse_semver("0.9.0")
+        current_semver = parse_semver("0.8.0")
+        self.assertTrue(current_semver.is_less_than(remote_semver))
+
 if __name__ == "__main__":
     unittest.main()

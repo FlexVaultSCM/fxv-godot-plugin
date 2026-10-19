@@ -166,3 +166,46 @@ static func get_plugin_version() -> String:
 	if config.load("res://addons/flexvault/plugin.cfg") == OK:
 		_cached_plugin_version = str(config.get_value("plugin", "version", ""))
 	return _cached_plugin_version
+
+
+const REMOTE_VERSION_JSON_URL := "https://github.com/FlexVaultSCM/fxv-godot-plugin/releases/latest/download/version.json"
+static var _available_update_version: String = ""
+static var _available_update_cli_range: String = ""
+
+static func get_available_update_version() -> String:
+	return _available_update_version
+
+static func get_available_update_cli_range() -> String:
+	return _available_update_cli_range
+
+static func set_plugin_version_override(ver: String) -> void:
+	_cached_plugin_version = ver
+
+static func process_remote_manifest(json_text: String) -> Dictionary:
+	var res := { "update_available": false, "version": "", "cli_range": "" }
+	if json_text.is_empty():
+		return res
+
+	var parsed = JSON.parse_string(json_text)
+	if not (parsed is Dictionary):
+		return res
+
+	var remote_ver_str: String = str(parsed.get("plugin_version", ""))
+	var remote_semver := parse_semver(remote_ver_str)
+	if remote_semver == null:
+		return res
+
+	var current_ver_str := get_plugin_version()
+	var current_semver := parse_semver(current_ver_str)
+	if current_semver != null and current_semver.is_less_than(remote_semver):
+		_available_update_version = remote_ver_str
+		res["update_available"] = true
+		res["version"] = remote_ver_str
+
+		var compat = parsed.get("cli_compatibility", {})
+		if compat is Dictionary and compat.has("min") and compat.has("max"):
+			_available_update_cli_range = ">= %s, < %s" % [compat["min"], compat["max"]]
+			res["cli_range"] = _available_update_cli_range
+
+	return res
+

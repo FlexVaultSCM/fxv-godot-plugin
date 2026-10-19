@@ -46,6 +46,15 @@ func test_version_guard():
 	var res_low = FxvVersionGuard.check_version("0.5.0")
 	assert(res_low["error"].find("RefCounted") == -1, "check_version() error leaked default Object repr: " + res_low["error"])
 	assert(res_low["error"].find("0.11.0") != -1 and res_low["error"].find("0.13.0") != -1, "check_version() error missing version bounds: " + res_low["error"])
+
+	# Test process_remote_manifest
+	FxvVersionGuard.set_plugin_version_override("0.8.0")
+	var manifest_json = '{"name":"godot","plugin_version":"0.9.0","tag":"v0.9.0","cli_compatibility":{"min":"0.11.0","max":"0.13.0"}}'
+	var manifest_res = FxvVersionGuard.process_remote_manifest(manifest_json)
+	assert(manifest_res["update_available"] == true, "Expected update to be available")
+	assert(FxvVersionGuard.get_available_update_version() == "0.9.0", "Available update version mismatch")
+	assert(FxvVersionGuard.get_available_update_cli_range() == ">= 0.11.0, < 0.13.0", "CLI range mismatch")
+
 	print("FxvVersionGuard OK.")
 
 func test_meta_helper():

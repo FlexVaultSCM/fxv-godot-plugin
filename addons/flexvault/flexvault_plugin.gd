@@ -142,6 +142,25 @@ func _enter_tree() -> void:
 			# failures are logged and never block editor startup.
 			FxvRunner.register_integration_async()
 		_state_cache.refresh()
+		_check_remote_plugin_update()
+
+func _check_remote_plugin_update() -> void:
+	var http := HTTPRequest.new()
+	http.timeout = 10.0
+	add_child(http)
+	http.request_completed.connect(func(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
+			var body_text := body.get_string_from_utf8()
+			var update_info := FxvVersionGuard.process_remote_manifest(body_text)
+			if update_info.get("update_available", false):
+				var range_str: String = update_info.get("cli_range", "")
+				var range_notice := " (supports fxv CLI %s)" % range_str if not range_str.is_empty() else ""
+				print("[FlexVault] A newer plugin version (v%s) is available%s: https://github.com/FlexVaultSCM/fxv-godot-plugin/releases/latest" % [update_info.get("version", ""), range_notice])
+		http.queue_free()
+	)
+	var err := http.request(FxvVersionGuard.REMOTE_VERSION_JSON_URL)
+	if err != OK:
+		http.queue_free()
 
 func _exit_tree() -> void:
 	remove_tool_menu_item("FlexVault: Refresh Status")
