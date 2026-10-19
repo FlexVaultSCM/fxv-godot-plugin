@@ -61,4 +61,4 @@ Settings can be customized in **Editor -> Editor Settings -> Version Control -> 
 ## Feedback & Support
 
 Bug reports and feedback are welcome on the [FlexVault Discord](https://fxv.dev/discord).
-For documentation, see [docs.fxv.dev](https://docs.fxv.dev).
+For documentation, see [docs.fxv.dev/how-to/godot-plugin/](https://docs.fxv.dev/how-to/godot-plugin/).

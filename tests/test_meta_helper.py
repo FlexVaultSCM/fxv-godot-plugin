@@ -1,4 +1,5 @@
 import os
+import re
 import unittest
 
 def normalize_separators(path):
@@ -8,6 +9,11 @@ def normalize_separators(path):
     while norm.endswith("/") and len(norm) > 1:
         norm = norm[:-1]
     return norm
+
+def is_absolute_path(path):
+    if not path:
+        return False
+    return path.startswith("/") or bool(re.match(r"^[a-zA-Z]:[/]", path))
 
 def is_import_file(path):
     return bool(path and path.endswith(".import"))
@@ -48,9 +54,9 @@ def to_repo_relative_path(path, repo_root, project_root=""):
         norm_path = norm_path[6:]
         if project_root:
             norm_proj = normalize_separators(project_root)
-            norm_path = normalize_separators(os.path.join(norm_proj, norm_path))
+            norm_path = f"{norm_proj}/{norm_path}" if norm_proj else norm_path
 
-    if os.path.isabs(norm_path):
+    if is_absolute_path(norm_path):
         if norm_path == norm_repo:
             return ""
         if norm_path.startswith(norm_repo + "/"):

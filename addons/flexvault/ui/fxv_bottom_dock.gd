@@ -126,7 +126,7 @@ func _build_ui() -> void:
 
 	_docs_btn = Button.new()
 	_docs_btn.text = "Docs"
-	_docs_btn.tooltip_text = "Open FlexVault Documentation (https://docs.fxv.dev)"
+	_docs_btn.tooltip_text = "Open FlexVault Documentation (%s)" % FxvSettings.DOCS_URL
 	toolbar.add_child(_docs_btn)
 
 	_discord_btn = Button.new()
@@ -303,8 +303,8 @@ func _connect_signals() -> void:
 	_changes_tree.item_activated.connect(_on_changes_item_activated)
 	_history_details_tree.item_activated.connect(_on_history_details_item_activated)
 	_terminal_btn.pressed.connect(func(): FxvSettings.open_workspace_in_terminal())
-	_docs_btn.pressed.connect(func(): OS.shell_open("https://docs.fxv.dev"))
-	_discord_btn.pressed.connect(func(): OS.shell_open("https://fxv.dev/discord"))
+	_docs_btn.pressed.connect(func(): OS.shell_open(FxvSettings.DOCS_URL))
+	_discord_btn.pressed.connect(func(): OS.shell_open(FxvSettings.DISCORD_URL))
 	_login_btn.pressed.connect(_on_login_pressed)
 	_login_edit.text_submitted.connect(func(_text: String): _on_login_pressed())
 
@@ -323,6 +323,9 @@ func _version_suffix() -> String:
 		parts.append("fxv %s" % cli_version)
 	if not plugin_version.is_empty():
 		parts.append("plugin %s (beta)" % plugin_version)
+	var update_version := FxvVersionGuard.get_available_update_version()
+	if not update_version.is_empty():
+		parts.append("v%s update available" % update_version)
 	return " | %s" % " / ".join(parts)
 
 func _on_tab_changed(tab_idx: int) -> void:

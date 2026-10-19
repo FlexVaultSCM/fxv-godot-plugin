@@ -58,6 +58,7 @@ const PERIODIC_FETCH_CHECK_INTERVAL_SECONDS := 10.0
 var _periodic_fetch_timer: Timer
 var _last_periodic_fetch_time_msec: int = -1
 var _fetch_in_flight: bool = false
+var _update_http: HTTPRequest = null
 
 func _enter_tree() -> void:
 	# Must run before anything below that could trigger an auto-snapshot (timers, filesystem/
@@ -142,6 +143,39 @@ func _enter_tree() -> void:
 			# failures are logged and never block editor startup.
 			FxvRunner.register_integration_async()
 		_state_cache.refresh()
+		_check_remote_plugin_update()
+
+func _check_remote_plugin_update() -> void:
+	if not FxvSettings.get_check_for_updates():
+		return
+	if FxvVersionGuard.has_checked_update():
+		return
+	if _update_http != null:
+		return
+
+	FxvVersionGuard._has_checked_update = true
+
+	var http := HTTPRequest.new()
+	http.timeout = 10.0
+	_update_http = http
+	add_child(http)
+	http.request_completed.connect(func(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+		_update_http = null
+		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
+			var body_text := body.get_string_from_utf8()
+			var update_info := FxvVersionGuard.process_remote_manifest(body_text)
+			if update_info.get("update_available", false):
+				var range_str: String = update_info.get("cli_range", "")
+				var range_notice := " (supports fxv CLI %s)" % range_str if not range_str.is_empty() else ""
+				push_warning("[FlexVault] A newer plugin version (v%s) is available%s: %s" % [update_info.get("version", ""), range_notice, FxvSettings.DOCS_URL])
+				if _bottom_dock != null and is_instance_valid(_bottom_dock):
+					_bottom_dock._on_state_changed()
+		http.queue_free()
+	)
+	var err := http.request(FxvVersionGuard.REMOTE_VERSION_JSON_URL)
+	if err != OK:
+		_update_http = null
+		http.queue_free()
 
 func _exit_tree() -> void:
 	remove_tool_menu_item("FlexVault: Refresh Status")
@@ -169,6 +203,11 @@ func _exit_tree() -> void:
 
 	if _snapshot_watchdog_timer != null:
 		_snapshot_watchdog_timer.queue_free()
+
+	if _update_http != null:
+		_update_http.cancel_request()
+		_update_http.queue_free()
+		_update_http = null
 
 	var resource_fs := EditorInterface.get_resource_filesystem()
 	if resource_fs.filesystem_changed.is_connected(_on_filesystem_changed):
@@ -391,7 +430,7 @@ func _on_menu_terminal() -> void:
 	FxvSettings.open_workspace_in_terminal()
 
 func _on_menu_docs() -> void:
-	OS.shell_open("https://docs.fxv.dev")
+	OS.shell_open(FxvSettings.DOCS_URL)
 
 func _on_menu_discord() -> void:
 	OS.shell_open("https://fxv.dev/discord")
