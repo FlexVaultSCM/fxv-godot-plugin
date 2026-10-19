@@ -22,13 +22,13 @@ static func normalize_separators(p_path: String) -> String:
 static func is_import_file(p_path: String) -> bool:
 	if p_path.is_empty():
 		return false
-	return p_path.ends_with(IMPORT_EXTENSION)
+	return p_path.to_lower().ends_with(IMPORT_EXTENSION)
 
 
 static func is_uid_file(p_path: String) -> bool:
 	if p_path.is_empty():
 		return false
-	return p_path.ends_with(UID_EXTENSION)
+	return p_path.to_lower().ends_with(UID_EXTENSION)
 
 
 static func get_logical_asset_path(p_path: String) -> String:
