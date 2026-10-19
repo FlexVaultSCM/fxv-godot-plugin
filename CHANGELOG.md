@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## [0.9.0](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.8.1...v0.9.0) (2026-10-19)
+
+
+### Features
+
+* add workspace terminal button and open files on double-click ([#30](https://github.com/FlexVaultSCM/fxv-godot-plugin/issues/30)) ([3c20f7c](https://github.com/FlexVaultSCM/fxv-godot-plugin/commit/3c20f7cef30036957bb33258a1cb80c06c1a0097))
+
 ## [0.8.1](https://github.com/FlexVaultSCM/fxv-godot-plugin/compare/v0.8.0...v0.8.1) (2026-10-15)
 
 
