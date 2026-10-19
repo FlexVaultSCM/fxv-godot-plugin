@@ -76,6 +76,7 @@ func _enter_tree() -> void:
 	# Add top menu entry under Project
 	add_tool_menu_item("FlexVault: Refresh Status", Callable(self, "_on_menu_refresh"))
 	add_tool_menu_item("FlexVault: Sync Workspace", Callable(self, "_on_menu_sync"))
+	add_tool_menu_item("FlexVault: Open Workspace in Terminal", Callable(self, "_on_menu_terminal"))
 	add_tool_menu_item("FlexVault: Documentation", Callable(self, "_on_menu_docs"))
 	add_tool_menu_item("FlexVault: Discord Feedback", Callable(self, "_on_menu_discord"))
 	FxvContextMenu.register_actions(self)
@@ -145,6 +146,7 @@ func _enter_tree() -> void:
 func _exit_tree() -> void:
 	remove_tool_menu_item("FlexVault: Refresh Status")
 	remove_tool_menu_item("FlexVault: Sync Workspace")
+	remove_tool_menu_item("FlexVault: Open Workspace in Terminal")
 	remove_tool_menu_item("FlexVault: Documentation")
 	remove_tool_menu_item("FlexVault: Discord Feedback")
 	FxvContextMenu.unregister_actions(self)
@@ -385,8 +387,12 @@ func _on_menu_sync() -> void:
 			push_error("[FlexVault] Sync failed: " + res.error_message)
 	)
 
+func _on_menu_terminal() -> void:
+	FxvSettings.open_workspace_in_terminal()
+
 func _on_menu_docs() -> void:
 	OS.shell_open("https://docs.fxv.dev")
 
 func _on_menu_discord() -> void:
 	OS.shell_open("https://fxv.dev/discord")
+

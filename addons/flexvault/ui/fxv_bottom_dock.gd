@@ -28,6 +28,7 @@ var _branch_menu: PopupMenu
 var _user_branch_label: Label
 var _login_edit: LineEdit
 var _login_btn: Button
+var _terminal_btn: Button
 var _docs_btn: Button
 var _discord_btn: Button
 
@@ -117,6 +118,11 @@ func _build_ui() -> void:
 	toolbar.add_child(_status_label)
 
 	toolbar.add_spacer(false)
+
+	_terminal_btn = Button.new()
+	_terminal_btn.text = "Terminal"
+	_terminal_btn.tooltip_text = "Open the FlexVault workspace in a terminal"
+	toolbar.add_child(_terminal_btn)
 
 	_docs_btn = Button.new()
 	_docs_btn.text = "Docs"
@@ -294,6 +300,9 @@ func _connect_signals() -> void:
 	_history_diff_current_btn.pressed.connect(_on_history_diff_current_pressed)
 	_history_diff_previous_btn.pressed.connect(_on_history_diff_previous_pressed)
 	_changes_tree.multi_selected.connect(func(_item: TreeItem, _column: int, _selected: bool): _update_selection_dependent_buttons())
+	_changes_tree.item_activated.connect(_on_changes_item_activated)
+	_history_details_tree.item_activated.connect(_on_history_details_item_activated)
+	_terminal_btn.pressed.connect(func(): FxvSettings.open_workspace_in_terminal())
 	_docs_btn.pressed.connect(func(): OS.shell_open("https://docs.fxv.dev"))
 	_discord_btn.pressed.connect(func(): OS.shell_open("https://fxv.dev/discord"))
 	_login_btn.pressed.connect(_on_login_pressed)
@@ -475,6 +484,100 @@ func _get_selected_paths() -> Array:
 		paths.append(item.get_text(0))
 		item = _changes_tree.get_next_selected(item)
 	return paths
+
+func _on_changes_item_activated() -> void:
+	var item := _changes_tree.get_selected()
+	if item == null:
+		item = _changes_tree.get_next_selected(null)
+	if item != null:
+		_open_file_in_editor(item.get_text(0))
+
+## Double-clicking a changed file in History diffs that commit against its previous revision
+## when an older revision exists, or against the current workspace for the initial revision.
+## Opening the live workspace file from a historical commit row would mislead the user into
+## thinking they are viewing the historical version (or fail if the file was later deleted).
+func _on_history_details_item_activated() -> void:
+	var item := _history_details_tree.get_selected()
+	if item == null:
+		return
+	if not _get_previous_history_revision().is_empty():
+		_on_history_diff_previous_pressed()
+	else:
+		_on_history_diff_current_pressed()
+
+func _open_file_in_editor(repo_rel_path: String) -> void:
+	if repo_rel_path.is_empty():
+		return
+
+	var repo_root := FxvSettings.get_repository_root()
+	var project_root := FxvSettings.get_project_root()
+	var target_rel := FxvMetaHelper.resolve_openable_repo_path(repo_rel_path, repo_root)
+
+	if target_rel == repo_rel_path and (FxvMetaHelper.is_import_file(repo_rel_path) or FxvMetaHelper.is_uid_file(repo_rel_path)):
+		var base_asset := FxvMetaHelper.get_logical_asset_path(repo_rel_path)
+		_status_label.text = "Cannot open '%s': base asset '%s' does not exist in workspace." % [repo_rel_path, base_asset]
+		return
+
+	var abs_path := FxvMetaHelper.to_absolute_path(target_rel, repo_root)
+	var is_dir := DirAccess.dir_exists_absolute(abs_path)
+	var is_file := FileAccess.file_exists(abs_path)
+
+	if not is_file and not is_dir:
+		_status_label.text = "Cannot open '%s': file does not exist in workspace." % repo_rel_path
+		return
+
+	var res_path := FxvMetaHelper.to_project_res_path(target_rel, repo_root, project_root)
+	if Engine.is_editor_hint() and res_path.begins_with("res://"):
+		var fs_dock := EditorInterface.get_file_system_dock()
+		if fs_dock != null:
+			fs_dock.navigate_to_path(res_path)
+		if is_dir:
+			_status_label.text = "Selected %s" % target_rel
+			return
+
+		EditorInterface.select_file(res_path)
+		var ext := res_path.get_extension().to_lower()
+		if ext == "tscn" or ext == "scn":
+			EditorInterface.open_scene_from_path(res_path)
+			_status_label.text = "Opened %s" % target_rel
+			return
+
+		var file_type := ""
+		var efs := EditorInterface.get_resource_filesystem()
+		if efs != null:
+			file_type = efs.get_file_type(res_path)
+
+		if file_type == "PackedScene":
+			EditorInterface.open_scene_from_path(res_path)
+			_status_label.text = "Opened %s" % target_rel
+			return
+
+		var is_script_or_text := (
+			ClassDB.is_parent_class(file_type, "Script")
+			or file_type == "TextFile"
+			or file_type == "OtherFile"
+			or ext in ["gd", "cs", "shader", "gdshader", "gdshaderinc", "txt", "md", "cfg", "ini", "json", "yml", "yaml", "toml", "xml"]
+		)
+		var is_lightweight_resource := ext in ["tres", "res", "material", "theme", "stylebox", "phymat", "labelsettings", "environment", "world3d", "world2d"]
+
+		if (is_script_or_text or is_lightweight_resource) and ResourceLoader.exists(res_path):
+			var resource := ResourceLoader.load(res_path)
+			if resource != null:
+				if resource is Script:
+					EditorInterface.set_main_screen_editor("Script")
+					EditorInterface.edit_script(resource)
+				elif resource is PackedScene:
+					EditorInterface.open_scene_from_path(res_path)
+				else:
+					EditorInterface.edit_resource(resource)
+				_status_label.text = "Opened %s" % target_rel
+				return
+
+		_status_label.text = "Selected %s" % target_rel
+		return
+
+	OS.shell_open(abs_path)
+	_status_label.text = "Opened %s" % target_rel
 
 ## Publish snapshots the workspace first, then publishes the resulting draft. Manual snapshotting
 ## is intentionally not exposed in the UI - the plugin takes snapshots automatically on

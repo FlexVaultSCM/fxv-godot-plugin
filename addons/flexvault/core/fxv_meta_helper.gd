@@ -22,13 +22,13 @@ static func normalize_separators(p_path: String) -> String:
 static func is_import_file(p_path: String) -> bool:
 	if p_path.is_empty():
 		return false
-	return p_path.ends_with(IMPORT_EXTENSION)
+	return p_path.to_lower().ends_with(IMPORT_EXTENSION)
 
 
 static func is_uid_file(p_path: String) -> bool:
 	if p_path.is_empty():
 		return false
-	return p_path.ends_with(UID_EXTENSION)
+	return p_path.to_lower().ends_with(UID_EXTENSION)
 
 
 static func get_logical_asset_path(p_path: String) -> String:
@@ -105,6 +105,21 @@ static func to_project_res_path(p_path: String, repo_root: String, project_root:
 		return "res://" + abs_path.substr(norm_proj.length() + 1)
 
 	return abs_path
+
+
+## Resolves a repo-relative path to the primary asset path to open in the editor.
+## If p_repo_relative_path is a companion (.import or .uid) and its base asset exists
+## on disk, returns the base asset's repo-relative path.
+static func resolve_openable_repo_path(p_repo_relative_path: String, repo_root: String) -> String:
+	if p_repo_relative_path.is_empty():
+		return ""
+	var logical := get_logical_asset_path(p_repo_relative_path)
+	if logical != p_repo_relative_path:
+		var logical_abs := to_absolute_path(logical, repo_root)
+		if FileAccess.file_exists(logical_abs):
+			return logical
+	return p_repo_relative_path
+
 
 
 ## Expands a list of file or folder paths to include companion .import and .uid files,
