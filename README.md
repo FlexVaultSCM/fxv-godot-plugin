@@ -32,9 +32,13 @@ Godot Engine 4.x Editor Version Control plugin for [FlexVault](https://fxv.dev).
 ## Configuration
 
 Settings can be customized in **Editor -> Editor Settings -> Version Control -> FlexVault**:
-* **CLI Executable Path**: Set a custom path to `fxv.exe` (Windows) or `fxv` (Linux/macOS), or rely on auto-discovery from standard paths and `PATH`.
-* **Diff Tool**: Set a custom visual diff utility (or rely on `FXV_DIFF_TOOL` / `DIFF` environment variables or auto-detection of VS Code, Beyond Compare, KDiff3, etc.).
-* **Fetch Period**: Interval in seconds between periodic background `fxv fetch` attempts to pull remote metadata (defaults to 120 seconds; set to 0 to disable).
+* **CLI Executable Path** (`version_control/flexvault/binary_path`): Custom path to `fxv.exe` (Windows) or `fxv` (Linux/macOS). Leave empty for auto-discovery from standard paths and `PATH`.
+* **Diff Tool** (`version_control/flexvault/diff_tool`): Custom visual diff utility. Leave empty to use `FXV_DIFF_TOOL` / `DIFF` environment variables or auto-detection (VS Code, Beyond Compare, KDiff3, etc.).
+* **Timeout Seconds** (`version_control/flexvault/timeout_seconds`): Timeout in seconds for read-only CLI commands (`status`, `history`, `cat`). Set to `0` (default) to wait indefinitely without interrupting operations.
+* **Default Resolve Preference** (`version_control/flexvault/default_resolve_preference`): Default conflict resolution mode when resolving merge conflicts: `Ask Each Time` (default), `Keep Mine`, or `Take Theirs`.
+* **Periodic Snapshot Interval** (`version_control/flexvault/periodic_snapshot_seconds`): Interval in seconds between periodic background auto-snapshots while uncommitted edits exist (defaults to 300 seconds / 5 minutes; set to `0` to disable).
+* **Fetch Period** (`version_control/flexvault/fetch_period_seconds`): Interval in seconds between periodic background `fxv fetch` attempts to pull remote metadata (defaults to 120 seconds; set to `0` to disable).
+* **Check for Updates** (`version_control/flexvault/check_for_updates`): Automatically check for new plugin releases from GitHub and display update notifications (enabled by default).
 
 ---
 
