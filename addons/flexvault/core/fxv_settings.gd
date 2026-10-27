@@ -4,12 +4,25 @@ extends RefCounted
 
 ## Manages FlexVault settings in EditorSettings and project repository discovery.
 
+## Path to the FlexVault CLI executable (fxv / fxv.exe). Leave empty for auto-discovery from standard install locations and PATH.
 const SETTING_BINARY_PATH: String = "version_control/flexvault/binary_path"
+
+## Path to an external visual diff executable (e.g. Beyond Compare, VS Code, KDiff3). Leave empty for auto-detection.
 const SETTING_DIFF_TOOL: String = "version_control/flexvault/diff_tool"
+
+## Timeout in seconds for read-only CLI commands. 0 disables the timeout (waits indefinitely).
 const SETTING_TIMEOUT_SECONDS: String = "version_control/flexvault/timeout_seconds"
+
+## Default preference for merge conflict resolution: Ask Each Time (0), Keep Mine (1), or Take Theirs (2).
 const SETTING_DEFAULT_RESOLVE_PREFERENCE: String = "version_control/flexvault/default_resolve_preference"
+
+## Interval in seconds between periodic background auto-snapshots while uncommitted changes exist. 0 disables periodic snapshots.
 const SETTING_PERIODIC_SNAPSHOT_SECONDS: String = "version_control/flexvault/periodic_snapshot_seconds"
+
+## Interval in seconds between periodic background 'fxv fetch' checks to poll remote repository metadata. 0 disables periodic fetch.
 const SETTING_FETCH_PERIOD_SECONDS: String = "version_control/flexvault/fetch_period_seconds"
+
+## Whether to automatically check for new plugin releases from GitHub and display update notifications.
 const SETTING_CHECK_FOR_UPDATES: String = "version_control/flexvault/check_for_updates"
 
 const DOCS_URL: String = "https://docs.fxv.dev/how-to/godot-plugin/"

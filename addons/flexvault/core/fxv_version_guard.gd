@@ -3,14 +3,13 @@ class_name FxvVersionGuard
 extends RefCounted
 
 ## Semantic version comparison and compatibility guard for FlexVault CLI.
-## Pinned compatible range: [0.11.0, 0.13.0)
 
 const MIN_MAJOR: int = 0
 const MIN_MINOR: int = 11
 const MIN_PATCH: int = 0
 
 const MAX_MAJOR: int = 0
-const MAX_MINOR: int = 13
+const MAX_MINOR: int = 14
 const MAX_PATCH: int = 0
 
 static var _cached_is_compatible: Variant = null
