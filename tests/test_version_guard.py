@@ -113,7 +113,7 @@ def process_remote_manifest(json_text, current_plugin_version, local_cli_version
 class TestVersionGuard(unittest.TestCase):
     def setUp(self):
         self.min_ver = SemVer(0, 11, 0)
-        self.max_ver = SemVer(0, 13, 0)
+        self.max_ver = SemVer(0, 14, 0)
 
     def test_parse_valid(self):
         v = parse_semver("0.8.0")
@@ -151,9 +151,15 @@ class TestVersionGuard(unittest.TestCase):
         self.assertFalse(ok)
 
         ok, _ = check_version("0.13.0", self.min_ver, self.max_ver)
+        self.assertTrue(ok)
+
+        ok, _ = check_version("0.13.1", self.min_ver, self.max_ver)
+        self.assertTrue(ok)
+
+        ok, _ = check_version("0.14.0", self.min_ver, self.max_ver)
         self.assertFalse(ok)
 
-        ok, _ = check_version("0.13.0-rc1", self.min_ver, self.max_ver)
+        ok, _ = check_version("0.14.0-rc1", self.min_ver, self.max_ver)
         self.assertFalse(ok)
 
     def test_parse_prefix(self):

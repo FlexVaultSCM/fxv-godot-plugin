@@ -26,11 +26,14 @@ func test_version_guard():
 	var res_12 = FxvVersionGuard.check_version("0.12.0")
 	assert(res_12["compatible"] == true, "0.12.0 should be compatible")
 
+	var res_13 = FxvVersionGuard.check_version("0.13.0")
+	assert(res_13["compatible"] == true, "0.13.0 should be compatible")
+
 	var res_old = FxvVersionGuard.check_version("0.10.1")
 	assert(res_old["compatible"] == false, "0.10.1 should be incompatible")
 
-	var res_high = FxvVersionGuard.check_version("0.13.0")
-	assert(res_high["compatible"] == false, "0.13.0 should be incompatible")
+	var res_high = FxvVersionGuard.check_version("0.14.0")
+	assert(res_high["compatible"] == false, "0.14.0 should be incompatible")
 	assert(res_high["error"].find("update the FlexVault Godot plugin") != -1, "High version error message mismatch: " + res_high["error"])
 
 	FxvVersionGuard.set_incompatible("custom error")
@@ -39,13 +42,13 @@ func test_version_guard():
 	FxvVersionGuard.reset_cached_version()
 
 	assert(FxvVersionGuard.get_min_version_string() == "0.11.0", "Min version string mismatch")
-	assert(FxvVersionGuard.get_max_version_string() == "0.13.0", "Max version string mismatch")
+	assert(FxvVersionGuard.get_max_version_string() == "0.14.0", "Max version string mismatch")
 
 	# Regression: SemVer's _to_string() override must actually be dispatched to by .to_string(),
 	# not fall back to Object's default "<RefCounted#...>" representation.
 	var res_low = FxvVersionGuard.check_version("0.5.0")
 	assert(res_low["error"].find("RefCounted") == -1, "check_version() error leaked default Object repr: " + res_low["error"])
-	assert(res_low["error"].find("0.11.0") != -1 and res_low["error"].find("0.13.0") != -1, "check_version() error missing version bounds: " + res_low["error"])
+	assert(res_low["error"].find("0.11.0") != -1 and res_low["error"].find("0.14.0") != -1, "check_version() error missing version bounds: " + res_low["error"])
 
 	# Test 'v' prefix parsing
 	var sem_v = FxvVersionGuard.parse_semver("v0.8.0")
@@ -232,13 +235,13 @@ func test_runner():
 	var has_checked = FxvRunner.ensure_version_checked()
 	print("ensure_version_checked result: ", has_checked)
 
-	var full_args = FxvRunner.build_integration_register_args("/tmp/ws", "0.6.0", "0.11.0", "0.13.0")
-	assert(full_args == ["integration", "register", "--name", "godot", "--plugin-version", "0.6.0", "--min", "0.11.0", "--max-version", "0.13.0", "--workspace", "/tmp/ws"], "Full integration register args mismatch: " + str(full_args))
+	var full_args = FxvRunner.build_integration_register_args("/tmp/ws", "0.6.0", "0.11.0", "0.14.0")
+	assert(full_args == ["integration", "register", "--name", "godot", "--plugin-version", "0.6.0", "--min", "0.11.0", "--max-version", "0.14.0", "--workspace", "/tmp/ws"], "Full integration register args mismatch: " + str(full_args))
 
-	var unknown_plugin_args = FxvRunner.build_integration_register_args("/tmp/ws", "Unknown", "0.11.0", "0.13.0")
+	var unknown_plugin_args = FxvRunner.build_integration_register_args("/tmp/ws", "Unknown", "0.11.0", "0.14.0")
 	assert(not unknown_plugin_args.has("--plugin-version"), "Unknown plugin version should be omitted: " + str(unknown_plugin_args))
 
-	var empty_plugin_args = FxvRunner.build_integration_register_args("/tmp/ws", "", "0.11.0", "0.13.0")
+	var empty_plugin_args = FxvRunner.build_integration_register_args("/tmp/ws", "", "0.11.0", "0.14.0")
 	assert(not empty_plugin_args.has("--plugin-version"), "Empty plugin version should be omitted: " + str(empty_plugin_args))
 
 	var fetch_args = FxvRunner.build_fetch_args()
