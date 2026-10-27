@@ -3,7 +3,6 @@ class_name FxvVersionGuard
 extends RefCounted
 
 ## Semantic version comparison and compatibility guard for FlexVault CLI.
-## Pinned compatible range: [0.11.0, 0.14.0)
 
 const MIN_MAJOR: int = 0
 const MIN_MINOR: int = 11

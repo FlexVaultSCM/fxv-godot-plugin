@@ -129,37 +129,36 @@ class TestVersionGuard(unittest.TestCase):
         self.assertIsNone(parse_semver("1.2.3.4"))
 
     def test_compatibility(self):
-        ok, _ = check_version("0.11.0", self.min_ver, self.max_ver)
+        # Floor bound
+        ok, _ = check_version(str(self.min_ver), self.min_ver, self.max_ver)
         self.assertTrue(ok)
 
-        ok, _ = check_version("0.11.5", self.min_ver, self.max_ver)
+        # Patch increment
+        patch_ver = f"{self.min_ver.major}.{self.min_ver.minor}.{self.min_ver.patch + 5}"
+        ok, _ = check_version(patch_ver, self.min_ver, self.max_ver)
         self.assertTrue(ok)
 
-        ok, _ = check_version("0.12.0", self.min_ver, self.max_ver)
-        self.assertTrue(ok)
+        # All intermediate minors
+        for m in range(self.min_ver.minor, self.max_ver.minor):
+            ok, _ = check_version(f"{self.min_ver.major}.{m}.0", self.min_ver, self.max_ver)
+            self.assertTrue(ok)
+            ok, _ = check_version(f"{self.min_ver.major}.{m}.1", self.min_ver, self.max_ver)
+            self.assertTrue(ok)
 
-        ok, _ = check_version("0.12.1", self.min_ver, self.max_ver)
-        self.assertTrue(ok)
-
-        ok, _ = check_version("0.10.1", self.min_ver, self.max_ver)
+        # Below floor
+        below_min = f"{self.min_ver.major}.{max(0, self.min_ver.minor - 1)}.9"
+        ok, _ = check_version(below_min, self.min_ver, self.max_ver)
+        self.assertFalse(ok)
+        ok, _ = check_version("0.0.1", self.min_ver, self.max_ver)
         self.assertFalse(ok)
 
-        ok, _ = check_version("0.10.9", self.min_ver, self.max_ver)
+        # At ceiling (exclusive)
+        ok, _ = check_version(str(self.max_ver), self.min_ver, self.max_ver)
         self.assertFalse(ok)
 
-        ok, _ = check_version("0.9.0", self.min_ver, self.max_ver)
-        self.assertFalse(ok)
-
-        ok, _ = check_version("0.13.0", self.min_ver, self.max_ver)
-        self.assertTrue(ok)
-
-        ok, _ = check_version("0.13.1", self.min_ver, self.max_ver)
-        self.assertTrue(ok)
-
-        ok, _ = check_version("0.14.0", self.min_ver, self.max_ver)
-        self.assertFalse(ok)
-
-        ok, _ = check_version("0.14.0-rc1", self.min_ver, self.max_ver)
+        # Above ceiling
+        above_max = f"{self.max_ver.major}.{self.max_ver.minor}.1"
+        ok, _ = check_version(above_max, self.min_ver, self.max_ver)
         self.assertFalse(ok)
 
     def test_parse_prefix(self):
