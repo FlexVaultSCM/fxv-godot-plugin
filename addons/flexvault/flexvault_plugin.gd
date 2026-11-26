@@ -341,6 +341,8 @@ func _on_periodic_snapshot_timer_timeout() -> void:
 func _on_periodic_fetch_timer_timeout() -> void:
 	if not FxvSettings.is_in_flexvault_repository():
 		return
+	if FxvVersionGuard.is_compatible() == false:
+		return
 
 	var period_seconds := FxvSettings.get_fetch_period_seconds()
 	if period_seconds <= 0.0:

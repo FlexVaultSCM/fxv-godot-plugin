@@ -14,6 +14,9 @@ class FxvResult extends RefCounted:
 	var timed_out: bool = false
 
 
+## fxv exit code: a FlexVault broker refused this fxv as too old to serve.
+const EXIT_CLIENT_UPGRADE_REQUIRED: int = 94
+
 static var _active_threads: Array[Thread] = []
 
 
@@ -89,7 +92,13 @@ static func run_command(
 
 	result.exit_code = exit_code
 	result.raw_stdout = str(output[0]) if output.size() > 0 else ""
+	parse_cli_output(result)
+	apply_client_upgrade_required(result)
+	return result
 
+
+## Fills success/data/error_message on `result` from its exit_code and raw_stdout.
+static func parse_cli_output(result: FxvResult) -> void:
 	if not result.raw_stdout.is_empty():
 		var trimmed := result.raw_stdout.strip_edges()
 		var first_brace := trimmed.find("{")
@@ -105,7 +114,7 @@ static func run_command(
 					if not FxvVersionGuard.check_and_cache(v_str):
 						result.success = false
 						result.error_message = FxvVersionGuard.get_last_error_message()
-						return result
+						return
 
 				var msg_dict: Dictionary = envelope.get("message", {})
 				if not msg_dict.is_empty():
@@ -114,17 +123,34 @@ static func run_command(
 						var payload: Dictionary = msg_dict.get("payload", {})
 						result.success = false
 						result.error_message = payload.get("message", "FlexVault CLI returned an error.")
-						return result
+						return
 
 					result.success = (result.exit_code == 0)
 					result.data = msg_dict.get("payload", null)
-					return result
+					return
 
 	result.success = (result.exit_code == 0)
 	if not result.success:
 		result.error_message = result.raw_stdout if not result.raw_stdout.is_empty() else "Command failed with exit code %d" % result.exit_code
 
-	return result
+
+## When the CLI exits with EXIT_CLIENT_UPGRADE_REQUIRED, rewrites the error into a single
+## install-a-newer-fxv message and marks the CLI incompatible, so later run_command calls
+## fail fast with the same message instead of re-contacting the broker.
+static func apply_client_upgrade_required(result: FxvResult) -> void:
+	if result.exit_code != EXIT_CLIENT_UPGRADE_REQUIRED:
+		return
+	var detail := result.error_message.strip_edges()
+	if detail.is_empty() or detail.begins_with("{") or detail.begins_with("Command failed with exit code"):
+		detail = "The FlexVault server no longer supports this version of fxv."
+	if not detail.ends_with("."):
+		detail += "."
+	result.success = false
+	result.error_message = "%s Install a newer release of fxv, then restart the Godot editor." % detail
+	var already_flagged: bool = FxvVersionGuard.is_compatible() == false
+	FxvVersionGuard.set_incompatible(result.error_message)
+	if not already_flagged:
+		push_error("[FlexVault] " + result.error_message)
 
 
 ## Non-blocking execution. Runs run_command() on a background Thread and delivers the

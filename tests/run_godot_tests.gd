@@ -260,6 +260,39 @@ func test_runner():
 	assert(fetch_args == ["fetch"], "Fetch args mismatch: " + str(fetch_args))
 	var fetch_repair_args = FxvRunner.build_fetch_args(true)
 	assert(fetch_repair_args == ["fetch", "--repair"], "Fetch repair args mismatch: " + str(fetch_repair_args))
+
+	# Exit 94 (ClientUpgradeRequired): one install-a-newer-fxv message, and later calls fail fast.
+	FxvVersionGuard.reset_cached_version()
+	var upgrade_res := FxvRunner.FxvResult.new()
+	upgrade_res.exit_code = FxvRunner.EXIT_CLIENT_UPGRADE_REQUIRED
+	upgrade_res.raw_stdout = JSON.stringify({"message": {"kind": "error", "payload": {
+		"exit_code": 94,
+		"message": "fxv 0.13.3 is older than 0.14.0, the oldest version this broker serves",
+		"error_data": {"kind": "broker-error", "version": "1.0", "payload": {"reason": "client_upgrade_required"}}
+	}}})
+	FxvRunner.parse_cli_output(upgrade_res)
+	FxvRunner.apply_client_upgrade_required(upgrade_res)
+	assert(upgrade_res.success == false, "Exit 94 should fail")
+	assert(upgrade_res.error_message == "fxv 0.13.3 is older than 0.14.0, the oldest version this broker serves. Install a newer release of fxv, then restart the Godot editor.", "Exit 94 message mismatch: " + upgrade_res.error_message)
+	assert(FxvVersionGuard.is_compatible() == false, "Exit 94 should mark the CLI incompatible")
+	var blocked_res := FxvRunner.run_command(["status"])
+	assert(blocked_res.success == false and blocked_res.error_message == upgrade_res.error_message, "Calls after exit 94 should fail fast with the same message: " + blocked_res.error_message)
+	assert(blocked_res.exit_code == -1, "Calls after exit 94 should not run the CLI")
+
+	var bare_upgrade_res := FxvRunner.FxvResult.new()
+	bare_upgrade_res.exit_code = FxvRunner.EXIT_CLIENT_UPGRADE_REQUIRED
+	FxvRunner.parse_cli_output(bare_upgrade_res)
+	FxvRunner.apply_client_upgrade_required(bare_upgrade_res)
+	assert(bare_upgrade_res.error_message.begins_with("The FlexVault server no longer supports this version of fxv."), "Exit 94 without JSON should use the fallback text: " + bare_upgrade_res.error_message)
+	FxvVersionGuard.reset_cached_version()
+
+	var other_res := FxvRunner.FxvResult.new()
+	other_res.exit_code = 1
+	other_res.raw_stdout = JSON.stringify({"message": {"kind": "error", "payload": {"message": "boom"}}})
+	FxvRunner.parse_cli_output(other_res)
+	FxvRunner.apply_client_upgrade_required(other_res)
+	assert(other_res.error_message == "boom", "Non-94 errors should pass through unchanged: " + other_res.error_message)
+	assert(FxvVersionGuard.is_compatible() == null, "Non-94 errors should not touch the version guard")
 	print("FxvRunner OK.")
 
 func test_ui():
